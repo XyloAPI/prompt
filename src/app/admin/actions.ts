@@ -30,7 +30,15 @@ import {
   getObjectSize,
   computeBucketUsage,
 } from "@/lib/r2";
-import { analyzeImageBuffer, GEMINI_API_KEY_SETTING, GEMINI_MODEL_SETTING } from "@/lib/gemini";
+import {
+  analyzeImageBuffer,
+  AI_PROVIDER_SETTING,
+  GEMINI_API_KEY_SETTING,
+  GEMINI_MODEL_SETTING,
+  NVIDIA_API_KEY_SETTING,
+  NVIDIA_MODEL_SETTING,
+  getAiSettings,
+} from "@/lib/ai-assistant";
 import type { Category, Image, PaletteColor } from "@/db/schema";
 
 export async function loginAction(prev: unknown, formData: FormData): Promise<{ error?: string }> {
@@ -136,19 +144,27 @@ export async function syncR2BucketAction(id: string): Promise<{ error?: string }
 
 // ---------- Settings ----------
 
-export async function saveGeminiSettingsAction(prev: unknown, formData: FormData): Promise<{ error?: string }> {
+export async function saveAiSettingsAction(prev: unknown, formData: FormData): Promise<{ error?: string }> {
   if (!(await isAdmin())) return unauthorized();
 
-  const apiKey = String(formData.get("apiKey") ?? "").trim();
-  const model = String(formData.get("model") ?? "").trim();
+  const provider = String(formData.get("provider") ?? "gemini").trim();
+  const geminiApiKey = String(formData.get("geminiApiKey") ?? "").trim();
+  const geminiModel = String(formData.get("geminiModel") ?? "").trim();
+  const nvidiaApiKey = String(formData.get("nvidiaApiKey") ?? "").trim();
+  const nvidiaModel = String(formData.get("nvidiaModel") ?? "").trim();
 
-  if (apiKey) await setSetting(GEMINI_API_KEY_SETTING, apiKey);
-  else await setSetting(GEMINI_API_KEY_SETTING, "");
-  if (model) await setSetting(GEMINI_MODEL_SETTING, model);
+  await setSetting(AI_PROVIDER_SETTING, provider);
+  await setSetting(GEMINI_API_KEY_SETTING, geminiApiKey);
+  if (geminiModel) await setSetting(GEMINI_MODEL_SETTING, geminiModel);
+  await setSetting(NVIDIA_API_KEY_SETTING, nvidiaApiKey);
+  if (nvidiaModel) await setSetting(NVIDIA_MODEL_SETTING, nvidiaModel);
 
   revalidatePath("/admin/settings");
+  revalidatePath("/admin");
   return {};
 }
+
+export const saveGeminiSettingsAction = saveAiSettingsAction;
 
 // ---------- Upload flow ----------
 
@@ -557,21 +573,55 @@ export async function refreshImageSizeAction(id: string): Promise<{ error?: stri
   return { sizeBytes: total };
 }
 
-export async function testGeminiAction(): Promise<{ error?: string; ok?: boolean }> {
+export async function testAiAction(): Promise<{ error?: string; ok?: boolean; message?: string }> {
   if (!(await isAdmin())) return unauthorized();
-  const apiKey = await getSetting(GEMINI_API_KEY_SETTING);
-  if (!apiKey) return { error: "No Gemini API key saved." };
-  try {
-    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: "Reply with the single word: ok" }] }],
-      }),
-    }).then((r) => r.json());
-    if (res?.error) return { error: res.error.message ?? "Gemini request failed." };
-    return { ok: true };
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "Gemini request failed." };
+  const settings = await getAiSettings();
+
+  if (settings.provider === "nvidia") {
+    if (!settings.nvidiaApiKey) return { error: "No NVIDIA NIM API key saved." };
+    try {
+      const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${settings.nvidiaApiKey}`,
+        },
+        body: JSON.stringify({
+          model: settings.nvidiaModel,
+          messages: [{ role: "user", content: "Reply with the single word: ok" }],
+          max_tokens: 10,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { error: data?.error?.message ?? data?.message ?? "NVIDIA NIM connection failed." };
+      }
+      return { ok: true, message: `Connected to ${settings.nvidiaModel} successfully.` };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "NVIDIA NIM request failed." };
+    }
+  } else {
+    if (!settings.geminiApiKey) return { error: "No Gemini API key saved." };
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${settings.geminiModel}:generateContent`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": settings.geminiApiKey },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "Reply with the single word: ok" }] }],
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok || data?.error) {
+        return { error: data?.error?.message ?? "Gemini connection failed." };
+      }
+      return { ok: true, message: `Connected to ${settings.geminiModel} successfully.` };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Gemini request failed." };
+    }
   }
 }
+
+export const testGeminiAction = testAiAction;

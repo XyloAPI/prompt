@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { HardDrives, ImageSquare, DownloadSimple } from "@phosphor-icons/react/dist/ssr";
 import { listImages } from "@/lib/data";
-import { getR2Buckets, getR2Accounts, getSetting } from "@/db/queries";
-import { GEMINI_MODEL_SETTING, DEFAULT_GEMINI_MODEL } from "@/lib/gemini";
+import { getR2Buckets, getR2Accounts } from "@/db/queries";
+import { getAiSettings } from "@/lib/ai-assistant";
 import { LibraryGrid } from "@/components/admin/library-grid";
 import { UploadDialog } from "@/components/admin/upload-dialog";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,13 +10,13 @@ import { Card, CardContent } from "@/components/ui/card";
 export const dynamic = "force-dynamic";
 
 export default async function AdminLibraryPage() {
-  const [images, buckets, accounts, modelSetting] = await Promise.all([
+  const [images, buckets, accounts, aiSettings] = await Promise.all([
     listImages(),
     getR2Buckets(),
     getR2Accounts(),
-    getSetting(GEMINI_MODEL_SETTING),
+    getAiSettings(),
   ]);
-  const model = modelSetting ?? DEFAULT_GEMINI_MODEL;
+  const model = aiSettings.provider === "nvidia" ? aiSettings.nvidiaModel : aiSettings.geminiModel;
   const accountNames = new Map(accounts.map((a) => [a.id, a.name]));
   const bucketOptions = buckets.map((b) => ({
     value: b.id,

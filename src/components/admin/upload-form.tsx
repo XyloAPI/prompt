@@ -10,7 +10,7 @@ import {
   generateMetadataFromFileAction,
   saveImageAction,
 } from "@/app/admin/actions";
-import { DEFAULT_GEMINI_MODEL } from "@/lib/gemini";
+import { ALL_VISION_MODELS, DEFAULT_GEMINI_MODEL } from "@/lib/ai-assistant";
 import type { PaletteColor } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { RippleButton, RippleButtonRipples } from "@/components/animate-ui/components/buttons/ripple";
@@ -68,15 +68,11 @@ export function UploadForm({
   const [generating, setGenerating] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [bucketId, setBucketId] = React.useState<string>(bucketOptions[0]?.value ?? "");
-  const [geminiModel, setGeminiModel] = React.useState<string>(
+  const [aiModel, setAiModel] = React.useState<string>(
     model ?? DEFAULT_GEMINI_MODEL
   );
 
-  const MODEL_OPTIONS = [
-    { value: "gemini-3.5-flash", label: "gemini-3.5-flash (recommended)" },
-    { value: "gemini-3.5-flash-lite", label: "gemini-3.5-flash-lite" },
-    { value: "gemini-3-flash-preview", label: "gemini-3-flash-preview (preview)" },
-  ];
+  const MODEL_OPTIONS = ALL_VISION_MODELS;
 
   const masterInputRef = React.useRef<HTMLInputElement>(null);
   const previewInputRef = React.useRef<HTMLInputElement>(null);
@@ -115,7 +111,7 @@ export function UploadForm({
         const res = await generateMetadataAction({
           key: uploaded.previewKey || uploaded.key,
           bucketId: uploaded.bucketId,
-          model: geminiModel,
+          model: aiModel,
         });
         if (res.error) {
           toast.error(res.error);
@@ -139,7 +135,7 @@ export function UploadForm({
         const res = await generateMetadataFromFileAction({
           base64,
           mimeType: targetFile.type || "image/jpeg",
-          model: geminiModel,
+          model: aiModel,
         });
 
         if (res.error) {
@@ -148,7 +144,7 @@ export function UploadForm({
         }
         applyGeneratedMetadata(res);
       }
-      toast.success("Metadata generated with Gemini!");
+      toast.success("Metadata generated with AI Assistant!");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Metadata generation failed.");
     } finally {
@@ -385,12 +381,12 @@ export function UploadForm({
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="w-44 sm:w-52">
+            <div className="w-48 sm:w-60">
               <FormSelect
-                name="gemini-model"
-                defaultValue={geminiModel}
+                name="ai-model"
+                defaultValue={aiModel}
                 items={MODEL_OPTIONS}
-                onValueChange={setGeminiModel}
+                onValueChange={setAiModel}
                 className="h-8 text-xs bg-background"
               />
             </div>

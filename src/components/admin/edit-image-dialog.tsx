@@ -12,7 +12,7 @@ import {
   deleteImageAction,
   refreshImageSizeAction,
 } from "@/app/admin/actions";
-import { DEFAULT_GEMINI_MODEL } from "@/lib/gemini";
+import { ALL_VISION_MODELS, DEFAULT_GEMINI_MODEL } from "@/lib/ai-assistant";
 import type { Category, Image as ImageType } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { RippleButton, RippleButtonRipples } from "@/components/animate-ui/components/buttons/ripple";
@@ -50,11 +50,7 @@ const categoryOptions: { value: Category; label: string }[] = [
   { value: "3d", label: "3D" },
 ];
 
-const MODEL_OPTIONS = [
-  { value: "gemini-3.5-flash", label: "gemini-3.5-flash (recommended)" },
-  { value: "gemini-3.5-flash-lite", label: "gemini-3.5-flash-lite" },
-  { value: "gemini-3-flash-preview", label: "gemini-3-flash-preview (preview)" },
-];
+const MODEL_OPTIONS = ALL_VISION_MODELS;
 
 export function EditImageDialog({
   image,
@@ -78,7 +74,7 @@ export function EditImageDialog({
   });
   const [masterFile, setMasterFile] = React.useState<File | null>(null);
   const [previewFile, setPreviewFile] = React.useState<File | null>(null);
-  const [geminiModel, setGeminiModel] = React.useState<string>(model ?? DEFAULT_GEMINI_MODEL);
+  const [aiModel, setAiModel] = React.useState<string>(model ?? DEFAULT_GEMINI_MODEL);
   const [saving, setSaving] = React.useState(false);
   const [replacing, setReplacing] = React.useState<"master" | "preview" | null>(null);
   const [generating, setGenerating] = React.useState(false);
@@ -164,7 +160,7 @@ export function EditImageDialog({
       const res = await generateMetadataAction({
         key: image.r2Key,
         bucketId: image.bucketId,
-        model: geminiModel,
+        model: aiModel,
       });
       if ("error" in res && res.error) {
         toast.error(res.error);
@@ -258,12 +254,12 @@ export function EditImageDialog({
               </div>
 
               <div className="flex items-center gap-2">
-                <div className="w-48 sm:w-56">
+                <div className="w-48 sm:w-60">
                   <FormSelect
-                    name="gemini-model"
-                    defaultValue={geminiModel}
+                    name="ai-model"
+                    defaultValue={aiModel}
                     items={MODEL_OPTIONS}
-                    onValueChange={setGeminiModel}
+                    onValueChange={setAiModel}
                     className="h-8 text-xs bg-background/80"
                   />
                 </div>
