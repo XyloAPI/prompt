@@ -12,9 +12,8 @@ export async function GET(request: NextRequest) {
         return (
           i.title.toLowerCase().includes(q) ||
           (i.description ?? "").toLowerCase().includes(q) ||
-          (i.prompt ?? "").toLowerCase().includes(q) ||
-          i.tags.some((t) => t.toLowerCase().includes(q)) ||
-          i.category.toLowerCase().includes(q)
+          (i.tags ?? []).some((t) => t.toLowerCase().includes(q)) ||
+          (i.category ?? "").toLowerCase().includes(q)
         );
       })
       .slice(0, 8)
