@@ -11,6 +11,7 @@ import {
   saveImageAction,
 } from "@/app/admin/actions";
 import { ALL_VISION_MODELS, DEFAULT_GEMINI_MODEL } from "@/lib/ai-assistant";
+import { compressImage } from "@/lib/compressor";
 import type { PaletteColor } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { RippleButton, RippleButtonRipples } from "@/components/animate-ui/components/buttons/ripple";
@@ -19,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormSelect } from "@/components/admin/form-select";
 import { ColorPalette } from "@/components/color-palette";
-import { Sparkle, CircleNotch, UploadSimple, ImageSquare } from "@phosphor-icons/react";
+import { Sparkle, CircleNotch, UploadSimple, ImageSquare, Lightning } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 type UploadedFile = {
@@ -54,6 +55,8 @@ export function UploadForm({
   const [previewPreviewUrl, setPreviewPreviewUrl] = React.useState<string | null>(null);
   const [masterDimensions, setMasterDimensions] = React.useState<{ width: number; height: number } | null>(null);
   const [dragging, setDragging] = React.useState<"master" | "preview" | null>(null);
+  const [compressingPreview, setCompressingPreview] = React.useState(false);
+  const [isAutoCompressed, setIsAutoCompressed] = React.useState(false);
   
   const [uploaded, setUploaded] = React.useState<UploadedFile | null>(null);
   const [category, setCategory] = React.useState<string>("photo");
@@ -77,7 +80,7 @@ export function UploadForm({
   const masterInputRef = React.useRef<HTMLInputElement>(null);
   const previewInputRef = React.useRef<HTMLInputElement>(null);
 
-  function selectFile(slot: "master" | "preview", file: File | undefined) {
+  async function selectFile(slot: "master" | "preview", file: File | undefined) {
     if (!file) return;
     const url = URL.createObjectURL(file);
     if (slot === "master") {
@@ -92,9 +95,28 @@ export function UploadForm({
       };
       img.src = url;
 
+      // Automatically generate compressed preview from Master using compressorjs
+      setCompressingPreview(true);
+      try {
+        const compressed = await compressImage(file, {
+          quality: 0.82,
+          maxWidth: 1920,
+          maxHeight: 1920,
+          mimeType: "image/jpeg",
+        });
+        const compressedUrl = URL.createObjectURL(compressed);
+        setPreviewFile(compressed);
+        setPreviewPreviewUrl(compressedUrl);
+        setIsAutoCompressed(true);
+      } catch (err) {
+        console.error("Auto compression failed:", err);
+      } finally {
+        setCompressingPreview(false);
+      }
     } else {
       setPreviewFile(file);
       setPreviewPreviewUrl(url);
+      setIsAutoCompressed(false);
     }
   }
 
@@ -363,16 +385,34 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
               onChange={(e) => selectFile(slot, e.target.files?.[0] ?? undefined)}
             />
 
-            {file && url ? (
+            {slot === "preview" && compressingPreview ? (
+              <div className="flex flex-col items-center gap-2 py-4">
+                <CircleNotch className="size-6 animate-spin text-primary" />
+                <p className="text-xs font-semibold text-foreground">Auto-compressing preview…</p>
+                <p className="text-[11px] text-muted-foreground">Optimizing from master image</p>
+              </div>
+            ) : file && url ? (
               <div className="flex w-full items-center gap-3">
                 <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-background">
                   <Image src={url} alt={label} fill className="object-cover" />
                 </div>
                 <div className="min-w-0 flex-1 text-left">
-                  <p className="truncate text-xs font-semibold text-foreground">{file.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="truncate text-xs font-semibold text-foreground">{file.name}</p>
+                    {slot === "preview" && isAutoCompressed && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium text-emerald-500">
+                        <Lightning className="size-2.5" weight="fill" /> Auto
+                      </span>
+                    )}
+                  </div>
                   <p className="text-[11px] text-muted-foreground">
                     {formatBytes(file.size)}
                     {slot === "master" && masterDimensions ? ` · ${masterDimensions.width}×${masterDimensions.height}` : ""}
+                    {slot === "preview" && masterFile && masterFile.size > file.size && (
+                      <span className="text-emerald-500 font-medium ml-1">
+                        (-{Math.round(((masterFile.size - file.size) / masterFile.size) * 100)}%)
+                      </span>
+                    )}
                   </p>
                   <span className="mt-1 inline-block text-[10px] text-primary underline underline-offset-2">
                     Click to replace
