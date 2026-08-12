@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/logo";
-import { CommandMenu } from "@/components/command-menu";
+import { NavbarSearch } from "@/components/navbar-search";
 
 export function Navbar() {
   const [scrolled, setScrolled] = React.useState(false);
@@ -55,7 +55,7 @@ export function Navbar() {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
-          <CommandMenu />
+          <NavbarSearch />
         </div>
       </div>
     </header>
