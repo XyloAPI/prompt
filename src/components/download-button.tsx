@@ -35,6 +35,20 @@ export function DownloadButton({
 }) {
   const [open, setOpen] = React.useState(false);
   const [downloading, setDownloading] = React.useState(false);
+  const isVideo = /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(url || thumbnailUrl || "");
+
+  const getDownloadExt = (blobType?: string) => {
+    if (blobType) {
+      if (blobType.includes("mp4")) return "mp4";
+      if (blobType.includes("webm")) return "webm";
+      if (blobType.includes("quicktime")) return "mov";
+      if (blobType.includes("png")) return "png";
+      if (blobType.includes("webp")) return "webp";
+    }
+    const match = (url || "").match(/\.(mp4|webm|mov|mkv|png|webp|gif|jpg|jpeg)(\?.*)?$/i);
+    if (match) return match[1].toLowerCase();
+    return isVideo ? "mp4" : "jpg";
+  };
 
   async function handleConfirmDownload() {
     setDownloading(true);
@@ -56,10 +70,11 @@ export function DownloadButton({
 
       const res = await fetch(url);
       const blob = await res.blob();
+      const ext = getDownloadExt(blob.type);
       const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = objectUrl;
-      a.download = `${title.replace(/\s+/g, "-").toLowerCase()}.jpg`;
+      a.download = `${title.replace(/\s+/g, "-").toLowerCase()}.${ext}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -95,32 +110,23 @@ export function DownloadButton({
         </DialogHeader>
 
         <div className="my-2">
-          {/* Preview banner */}
+          {/* Asset info banner */}
           <div className="flex items-center gap-3.5 rounded-xl border border-border/60 bg-muted/20 p-3">
-            <div className="relative size-14 shrink-0 overflow-hidden rounded-lg border border-border/50 bg-background">
-              {/\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(url || thumbnailUrl || "") ? (
-                <video
-                  src={thumbnailUrl || url}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  className="size-full object-cover"
-                />
-              ) : (
+            {!isVideo && (
+              <div className="relative size-14 shrink-0 overflow-hidden rounded-lg border border-border/50 bg-background">
                 <img
                   src={thumbnailUrl || url}
                   alt={title}
                   className="size-full object-cover"
                 />
-              )}
-            </div>
+              </div>
+            )}
             <div className="min-w-0 flex-1 space-y-0.5">
               <p className="truncate text-sm font-medium text-foreground">{title}</p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1 text-primary">
                   <CheckCircle className="size-3" weight="fill" />
-                  High Quality
+                  {isVideo ? "Original Video File" : "High Quality Image"}
                 </span>
               </div>
             </div>

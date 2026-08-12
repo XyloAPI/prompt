@@ -33,6 +33,25 @@ export async function GET(
     const res = await getObjectBuffer({ account, bucketName: bucket.name, key });
     bytes = res.bytes;
     contentType = res.contentType || "application/octet-stream";
+
+    if (contentType === "application/octet-stream" || !contentType) {
+      const ext = key.split(".").pop()?.toLowerCase();
+      const mimeMap: Record<string, string> = {
+        mp4: "video/mp4",
+        webm: "video/webm",
+        mov: "video/quicktime",
+        mkv: "video/x-matroska",
+        jpg: "image/jpeg",
+        jpeg: "image/jpeg",
+        png: "image/png",
+        webp: "image/webp",
+        gif: "image/gif",
+        avif: "image/avif",
+      };
+      if (ext && mimeMap[ext]) {
+        contentType = mimeMap[ext];
+      }
+    }
   } catch {
     return new Response("Not Found", { status: 404 });
   }
@@ -40,6 +59,7 @@ export async function GET(
   return new Response(new Uint8Array(bytes), {
     headers: {
       "Content-Type": contentType,
+      "Accept-Ranges": "bytes",
       "Cache-Control": "public, max-age=31536000, immutable",
       "Content-Length": String(bytes.byteLength),
     },

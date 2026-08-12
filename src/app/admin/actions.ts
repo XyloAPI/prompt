@@ -168,15 +168,25 @@ export const saveGeminiSettingsAction = saveAiSettingsAction;
 
 // ---------- Upload flow ----------
 
-function pickExt(contentType: string): string {
+function pickExt(contentType: string, fileName?: string): string {
   const map: Record<string, string> = {
     "image/jpeg": "jpg",
     "image/png": "png",
     "image/webp": "webp",
     "image/gif": "gif",
     "image/avif": "avif",
+    "image/svg+xml": "svg",
+    "video/mp4": "mp4",
+    "video/webm": "webm",
+    "video/quicktime": "mov",
+    "video/x-matroska": "mkv",
   };
-  return map[contentType] ?? "jpg";
+  if (map[contentType]) return map[contentType];
+  if (fileName && fileName.includes(".")) {
+    const ext = fileName.split(".").pop()?.toLowerCase();
+    if (ext && /^[a-z0-9]{2,5}$/.test(ext)) return ext;
+  }
+  return "jpg";
 }
 
 async function pickBucket(
@@ -229,10 +239,10 @@ export async function createUploadAction(input: {
   const accountObj = accounts.find((a) => a.id === bucket.accountId);
   if (!accountObj) return { error: "R2 account not found." };
 
-  const ext = pickExt(input.master.contentType);
+  const ext = pickExt(input.master.contentType, input.master.fileName);
   const slug = crypto.randomUUID();
   const key = `images/${slug}.${ext}`;
-  const previewKey = input.preview ? `images/preview/${slug}.${pickExt(input.preview.contentType)}` : "";
+  const previewKey = input.preview ? `images/preview/${slug}.${pickExt(input.preview.contentType, input.preview.fileName)}` : "";
 
   try {
     const url = await createPresignedUploadUrl({
