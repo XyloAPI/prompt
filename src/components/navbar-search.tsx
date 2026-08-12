@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { MagnifyingGlass, X } from "@phosphor-icons/react";
 
-export function NavbarSearch() {
+function NavbarSearchInput() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -63,5 +63,27 @@ export function NavbarSearch() {
         </button>
       )}
     </form>
+  );
+}
+
+function NavbarSearchFallback() {
+  return (
+    <div className="relative flex items-center w-full max-w-[200px] sm:max-w-[260px]">
+      <MagnifyingGlass className="pointer-events-none absolute left-3 size-4 text-muted-foreground" />
+      <input
+        type="text"
+        disabled
+        placeholder="Search assets…"
+        className="h-9 w-full rounded-full border border-border/60 bg-muted/30 pl-9 pr-8 text-xs text-foreground placeholder:text-muted-foreground outline-none opacity-80"
+      />
+    </div>
+  );
+}
+
+export function NavbarSearch() {
+  return (
+    <React.Suspense fallback={<NavbarSearchFallback />}>
+      <NavbarSearchInput />
+    </React.Suspense>
   );
 }
