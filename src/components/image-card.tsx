@@ -4,7 +4,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { Image as ImageType } from "@/db/schema";
 
-export async function ImageCard({
+export function ImageCard({
   image,
   className,
   eager = false,

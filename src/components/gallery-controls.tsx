@@ -3,6 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { X } from "@phosphor-icons/react";
+import { OptionWheel } from "@/components/ui/option-wheel";
 
 import {
   Select,
@@ -15,10 +16,10 @@ import {
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 
 const categories = [
-  { value: "", label: "All" },
+  { value: "", label: "All Assets" },
   { value: "photo", label: "Photos" },
-  { value: "illustration", label: "Illustration" },
-  { value: "3d", label: "3D" },
+  { value: "illustration", label: "Illustrations" },
+  { value: "3d", label: "3D Renders" },
 ];
 
 const sortOptions = [
@@ -41,6 +42,14 @@ export function GalleryControls({
   const searchParams = useSearchParams();
   const [query, setQuery] = React.useState(initialQuery ?? "");
 
+  const category = initialCategory ?? "";
+  const sort = initialSort ?? "latest";
+
+  const selectedIndex = Math.max(
+    0,
+    categories.findIndex((c) => c.value === category)
+  );
+
   const update = (patch: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
     for (const [key, value] of Object.entries(patch)) {
@@ -50,29 +59,35 @@ export function GalleryControls({
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  const category = initialCategory ?? "";
-  const sort = initialSort ?? "latest";
-
   return (
-    <div className="flex flex-col gap-4 border-b border-border pb-6 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        {categories.map((c) => (
-          <button
-            key={c.value}
-            type="button"
-            onClick={() => update({ category: c.value })}
-            className={
-              category === c.value
-                ? "text-sm font-medium text-foreground"
-                : "text-sm text-muted-foreground transition-colors hover:text-foreground"
-            }
-          >
-            {c.label}
-          </button>
-        ))}
+    <div className="flex flex-col gap-6 border-b border-border/40 pb-6 lg:flex-row lg:items-center lg:justify-between">
+      {/* OptionWheel Selector */}
+      <div className="h-36 w-72 sm:w-80 relative overflow-hidden [mask-image:linear-gradient(to_bottom,black_0%,black_60%,transparent_100%)] [-webkit-mask-image:linear-gradient(to_bottom,black_0%,black_60%,transparent_100%)]">
+        <OptionWheel
+          items={categories.map((c) => c.label)}
+          defaultSelected={selectedIndex}
+          selectedIndex={selectedIndex}
+          onChange={(idx) => {
+            const targetCat = categories[idx]?.value ?? "";
+            update({ category: targetCat });
+          }}
+          align="top"
+          fontSize={1.25}
+          spacing={1.6}
+          curve={0.7}
+          tilt={4.5}
+          blur={1.4}
+          fade={0.35}
+          minOpacity={0.15}
+          smoothing={180}
+          inset={8}
+          textColor="rgba(160, 160, 160, 0.45)"
+          activeColor="hsl(var(--foreground))"
+          className="h-full w-full"
+        />
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <InputGroup className="w-full lg:w-64">
           <InputGroupInput
             placeholder="Search images…"
