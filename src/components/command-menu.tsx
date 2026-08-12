@@ -91,9 +91,12 @@ export function CommandMenu() {
           </CommandGroup>
 
           {results.images.length > 0 && (
-            <CommandGroup heading="Images">
+            <CommandGroup heading="Assets">
               {results.images.map((i) => (
-                <CommandItem key={i.id} onSelect={() => go(`/image/${i.id}`)}>
+                <CommandItem
+                  key={i.id}
+                  onSelect={() => go(i.category === "video" ? `/video/${i.id}` : `/image/${i.id}`)}
+                >
                   <span>{i.title}</span>
                   <span className="ml-auto text-xs text-muted-foreground capitalize">{i.category}</span>
                 </CommandItem>

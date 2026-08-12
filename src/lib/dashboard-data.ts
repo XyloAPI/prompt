@@ -2,9 +2,11 @@ import { listImages } from "@/lib/data";
 import { getR2Buckets } from "@/db/queries";
 import type { Category } from "@/db/schema";
 
-const categoryLabels: Record<Category, string> = {  photo: "Photo",
+const categoryLabels: Record<Category, string> = {
+  photo: "Photo",
   illustration: "Illustration",
   "3d": "3D",
+  video: "Video",
 };
 
 export type DashboardData = {

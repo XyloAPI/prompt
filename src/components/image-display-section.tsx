@@ -43,16 +43,27 @@ export function ImageDetailsCard({
 
   React.useEffect(() => {
     if (!url) return;
-    const img = new window.Image();
-    img.onload = () => {
-      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-        setDimensions({
-          width: img.naturalWidth,
-          height: img.naturalHeight,
-        });
-      }
-    };
-    img.src = url;
+    const isVideo = /\.(mp4|webm|mov|mkv)$/i.test(url);
+    if (isVideo) {
+      const vid = document.createElement("video");
+      vid.onloadedmetadata = () => {
+        if (vid.videoWidth > 0 && vid.videoHeight > 0) {
+          setDimensions({ width: vid.videoWidth, height: vid.videoHeight });
+        }
+      };
+      vid.src = url;
+    } else {
+      const img = new window.Image();
+      img.onload = () => {
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          setDimensions({
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+          });
+        }
+      };
+      img.src = url;
+    }
   }, [url]);
 
   return (

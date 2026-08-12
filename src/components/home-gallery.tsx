@@ -10,12 +10,57 @@ import { arrangeAestheticImages } from "@/lib/layout-utils";
 import type { Image as ImageType, Category } from "@/db/schema";
 import { ArrowUpRight } from "@phosphor-icons/react";
 
-const CATEGORY_ITEMS = ["All Assets", "Photos", "Illustrations", "3D Renders"];
+const CATEGORY_ITEMS = ["All Assets", "Photos", "Illustrations", "3D Renders", "Videos"];
 
-const CATEGORY_VALUES: (Category | "")[] = ["", "photo", "illustration", "3d"];
+const CATEGORY_VALUES: (Category | "")[] = ["", "photo", "illustration", "3d", "video"];
 
 export function HomeGallery({ initialImages }: { initialImages: ImageType[] }) {
   const [selectedIndex, setSelectedIndex] = React.useState(0);
+
+  // Restore category from URL or sessionStorage on mount & popstate
+  React.useEffect(() => {
+    const syncFromUrlOrStorage = () => {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlCat = urlParams.get("category");
+        if (urlCat !== null) {
+          const found = CATEGORY_VALUES.indexOf(urlCat as Category);
+          if (found !== -1) {
+            setSelectedIndex(found);
+            return;
+          }
+        }
+        const saved = sessionStorage.getItem("home_active_category");
+        if (saved) {
+          const found = CATEGORY_VALUES.indexOf(saved as Category);
+          if (found !== -1) {
+            setSelectedIndex(found);
+          }
+        }
+      } catch {}
+    };
+
+    syncFromUrlOrStorage();
+    window.addEventListener("popstate", syncFromUrlOrStorage);
+    return () => window.removeEventListener("popstate", syncFromUrlOrStorage);
+  }, []);
+
+  const handleCategoryChange = (idx: number) => {
+    setSelectedIndex(idx);
+    const cat = CATEGORY_VALUES[idx];
+    try {
+      sessionStorage.setItem("home_active_category", cat || "");
+      const params = new URLSearchParams(window.location.search);
+      if (cat) {
+        params.set("category", cat);
+      } else {
+        params.delete("category");
+      }
+      const qs = params.toString();
+      const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+      window.history.replaceState(null, "", newUrl);
+    } catch {}
+  };
 
   const selectedCategory = CATEGORY_VALUES[selectedIndex];
 
@@ -38,7 +83,7 @@ export function HomeGallery({ initialImages }: { initialImages: ImageType[] }) {
               items={CATEGORY_ITEMS}
               defaultSelected={selectedIndex}
               selectedIndex={selectedIndex}
-              onChange={(idx) => setSelectedIndex(idx)}
+              onChange={handleCategoryChange}
               align="top"
               fontSize={1.25}
               spacing={1.6}

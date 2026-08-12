@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, index } from "drizzle-orm/sqlite-core";
 
-export const categories = ["photo", "illustration", "3d"] as const;
+export const categories = ["photo", "illustration", "3d", "video"] as const;
 export type Category = (typeof categories)[number];
 
 export type PaletteColor = { hex: string; name?: string };

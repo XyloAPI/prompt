@@ -13,20 +13,36 @@ export function ImageCard({
   className?: string;
   eager?: boolean;
 }) {
+  const isVideo =
+    image.category === "video" ||
+    /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
+    /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url);
+
   return (
     <Link
-      href={`/image/${image.id}`}
+      href={isVideo ? `/video/${image.id}` : `/image/${image.id}`}
       className={cn("group relative block overflow-hidden rounded-lg bg-muted", className)}
       style={{ aspectRatio: image.width && image.height ? `${image.width} / ${image.height}` : undefined }}
     >
-      <Image
-        src={image.thumbnailUrl}
-        alt={image.title}
-        fill
-        sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
-        className="object-cover"
-        priority={eager}
-      />
+      {isVideo ? (
+        <video
+          src={image.thumbnailUrl || image.url}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="size-full object-cover"
+        />
+      ) : (
+        <Image
+          src={image.thumbnailUrl}
+          alt={image.title}
+          fill
+          sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
+          className="object-cover"
+          priority={eager}
+        />
+      )}
 
       {/* Hover overlay text */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-4 pt-12 opacity-0 transition-opacity duration-200 group-hover:opacity-100">

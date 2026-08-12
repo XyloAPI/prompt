@@ -208,16 +208,16 @@ export type CreateUploadResult =
   | { error: string }
   | {
       url: string;
-      previewUrl: string;
+      previewUrl?: string;
       key: string;
-      previewKey: string;
+      previewKey?: string;
       bucketId: string;
       bucketName: string;
     };
 
 export async function createUploadAction(input: {
   master: { fileName: string; contentType: string; size: number };
-  preview: { fileName: string; contentType: string; size: number };
+  preview?: { fileName: string; contentType: string; size: number };
   bucketId?: string;
 }): Promise<CreateUploadResult> {
   if (!(await isAdmin())) return { error: "Unauthorized." };
@@ -232,25 +232,34 @@ export async function createUploadAction(input: {
   const ext = pickExt(input.master.contentType);
   const slug = crypto.randomUUID();
   const key = `images/${slug}.${ext}`;
-  const previewKey = `images/preview/${slug}.${ext}`;
+  const previewKey = input.preview ? `images/preview/${slug}.${pickExt(input.preview.contentType)}` : "";
 
   try {
-    const [url, previewUrl] = await Promise.all([
-      createPresignedUploadUrl({
-        account: accountObj,
-        bucketName: bucket.name,
-        key,
-        contentType: input.master.contentType,
-      }),
-      createPresignedUploadUrl({
+    const url = await createPresignedUploadUrl({
+      account: accountObj,
+      bucketName: bucket.name,
+      key,
+      contentType: input.master.contentType,
+    });
+
+    let previewUrl = "";
+    if (input.preview && previewKey) {
+      previewUrl = await createPresignedUploadUrl({
         account: accountObj,
         bucketName: bucket.name,
         key: previewKey,
         contentType: input.preview.contentType || input.master.contentType,
-      }),
-    ]);
+      });
+    }
 
-    return { url, previewUrl, key, previewKey, bucketId: bucket.bucketId, bucketName: bucket.name };
+    return {
+      url,
+      previewUrl: previewUrl || undefined,
+      key,
+      previewKey: previewKey || undefined,
+      bucketId: bucket.bucketId,
+      bucketName: bucket.name,
+    };
   } catch (err) {
     return {
       error: err instanceof Error ? `Presign failed: ${err.message}` : "Presign failed.",
@@ -262,6 +271,7 @@ export async function generateMetadataAction(input: {
   key: string;
   bucketId: string;
   model?: string;
+  hint?: string;
 }): Promise<{ error?: string } & Partial<{ title: string; description: string; tags: string[]; palette: PaletteColor[]; prompt: string }>> {
   if (!(await isAdmin())) return { error: "Unauthorized." };
 
@@ -272,8 +282,17 @@ export async function generateMetadataAction(input: {
 
   const ext = input.key.split(".").pop()?.toLowerCase() ?? "jpg";
   const mimeType =
-    { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", avif: "image/avif" }[ext] ??
-    "image/jpeg";
+    {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      webp: "image/webp",
+      gif: "image/gif",
+      avif: "image/avif",
+      mp4: "video/mp4",
+      webm: "video/webm",
+      mov: "video/quicktime",
+    }[ext] ?? "image/jpeg";
 
   let res: { bytes: Buffer; contentType?: string };
   try {
@@ -285,7 +304,7 @@ export async function generateMetadataAction(input: {
   }
   const bytes = res.bytes;
 
-  const result = await analyzeImageBuffer(bytes, mimeType, input.model);
+  const result = await analyzeImageBuffer(bytes, mimeType, input.model, input.hint);
   if (!result.ok) return { error: result.error };
 
   return {
@@ -301,11 +320,12 @@ export async function generateMetadataFromFileAction(input: {
   base64: string;
   mimeType: string;
   model?: string;
+  hint?: string;
 }): Promise<{ error?: string } & Partial<{ title: string; description: string; tags: string[]; palette: PaletteColor[]; prompt: string }>> {
   if (!(await isAdmin())) return { error: "Unauthorized." };
   try {
     const buffer = Buffer.from(input.base64, "base64");
-    const result = await analyzeImageBuffer(buffer, input.mimeType, input.model);
+    const result = await analyzeImageBuffer(buffer, input.mimeType, input.model, input.hint);
     if (!result.ok) return { error: result.error };
     return {
       title: result.data.title,

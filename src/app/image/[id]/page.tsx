@@ -11,10 +11,13 @@ import { Masonry, MasonryItem } from "@/components/masonry";
 import { Separator } from "@/components/ui/separator";
 import { ImageDetailsCard } from "@/components/image-display-section";
 
+import { DetailBackButton } from "@/components/detail-back-button";
+
 const categoryLabels: Record<string, string> = {
   photo: "Photo",
   illustration: "Illustration",
   "3d": "3D",
+  video: "Video",
 };
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -36,19 +39,14 @@ export default async function ImageDetailPage({ params }: { params: Promise<{ id
   const tags = image.tags ?? [];
   const palette = image.palette ?? [];
   const prompt = image.prompt ?? "";
+  const isVideo = image.category === "video" || /\.(mp4|webm|mov|mkv)$/i.test(image.url);
 
   return (
     <div className="mx-auto max-w-[1800px] px-4 py-6 sm:px-8 lg:px-12 sm:py-8">
-      <Link
-        href="/gallery"
-        className="mb-6 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-3.5" />
-        <span>Back to gallery</span>
-      </Link>
+      <DetailBackButton defaultCategory={image.category} />
 
       <div className="grid items-start gap-8 lg:grid-cols-[1fr_360px] xl:gap-12">
-        {/* Main image presentation */}
+        {/* Main image / video presentation */}
         <div className="flex items-start justify-center">
           <div className="relative inline-flex overflow-hidden rounded-2xl border border-border/60 bg-muted/20 shadow-2xl">
             {image.thumbnailUrl && (
@@ -61,11 +59,23 @@ export default async function ImageDetailPage({ params }: { params: Promise<{ id
                 }}
               />
             )}
-            <img
-              src={image.url}
-              alt={image.title}
-              className="relative z-10 block h-auto max-h-[calc(100vh-8rem)] w-auto max-w-full rounded-2xl object-contain"
-            />
+            {isVideo ? (
+              <video
+                src={image.url}
+                controls
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="relative z-10 block h-auto max-h-[calc(100vh-8rem)] w-auto max-w-full rounded-2xl object-contain bg-black/40"
+              />
+            ) : (
+              <img
+                src={image.url}
+                alt={image.title}
+                className="relative z-10 block h-auto max-h-[calc(100vh-8rem)] w-auto max-w-full rounded-2xl object-contain"
+              />
+            )}
           </div>
         </div>
 

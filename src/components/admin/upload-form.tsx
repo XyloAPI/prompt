@@ -77,41 +77,68 @@ export function UploadForm({
 
   const MODEL_OPTIONS = ALL_VISION_MODELS;
 
+  const isMasterVideo = Boolean(
+    (masterFile && (masterFile.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(masterFile.name))) ||
+    category === "video"
+  );
+
   const masterInputRef = React.useRef<HTMLInputElement>(null);
   const previewInputRef = React.useRef<HTMLInputElement>(null);
 
   async function selectFile(slot: "master" | "preview", file: File | undefined) {
     if (!file) return;
     const url = URL.createObjectURL(file);
+    const isVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name);
+
     if (slot === "master") {
       setMasterFile(file);
       setMasterPreviewUrl(url);
 
-      const img = new window.Image();
-      img.onload = () => {
-        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-          setMasterDimensions({ width: img.naturalWidth, height: img.naturalHeight });
-        }
-      };
-      img.src = url;
-
-      // Automatically generate compressed preview from Master using compressorjs
-      setCompressingPreview(true);
-      try {
-        const compressed = await compressImage(file, {
-          quality: 0.82,
-          maxWidth: 1920,
-          maxHeight: 1920,
-          mimeType: "image/jpeg",
-        });
-        const compressedUrl = URL.createObjectURL(compressed);
-        setPreviewFile(compressed);
-        setPreviewPreviewUrl(compressedUrl);
-        setIsAutoCompressed(true);
-      } catch (err) {
-        console.error("Auto compression failed:", err);
-      } finally {
+      if (isVideo) {
+        setCategory("video");
+        setPreviewFile(null);
+        setPreviewPreviewUrl(null);
+        setIsAutoCompressed(false);
         setCompressingPreview(false);
+
+        const video = document.createElement("video");
+        video.src = url;
+        video.crossOrigin = "anonymous";
+        video.muted = true;
+        video.playsInline = true;
+
+        video.onloadedmetadata = () => {
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            setMasterDimensions({ width: video.videoWidth, height: video.videoHeight });
+          }
+        };
+      } else {
+        const img = new window.Image();
+        img.onload = () => {
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            setMasterDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+          }
+        };
+        img.src = url;
+
+        // Automatically generate compressed preview from Master using compressorjs
+        setCompressingPreview(true);
+        try {
+          const compressed = await compressImage(file, {
+            quality: 0.82,
+            maxWidth: 1920,
+            maxHeight: 1920,
+            mimeType: "image/jpeg",
+          });
+          const compressedUrl = URL.createObjectURL(compressed);
+          setPreviewFile(compressed);
+          setPreviewPreviewUrl(compressedUrl);
+          setIsAutoCompressed(true);
+        } catch (err) {
+          console.error("Auto compression failed:", err);
+        } finally {
+          setCompressingPreview(false);
+        }
       }
     } else {
       setPreviewFile(file);
@@ -121,6 +148,100 @@ export function UploadForm({
   }
 
 async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ base64: string; mimeType: string }> {
+  const isVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name);
+
+  if (isVideo) {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement("video");
+      const url = URL.createObjectURL(file);
+      video.src = url;
+      video.preload = "auto";
+      video.muted = true;
+      video.playsInline = true;
+      video.crossOrigin = "anonymous";
+
+      const timeout = setTimeout(() => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Video extraction timed out."));
+      }, 15000);
+
+      const tryCapture = (attempt = 0) => {
+        try {
+          let width = video.videoWidth || 1280;
+          let height = video.videoHeight || 720;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          if (!ctx) throw new Error("Canvas context failed");
+
+          ctx.drawImage(video, 0, 0, width, height);
+
+          // Check brightness of sampled frame
+          const sampleW = Math.min(width, 40);
+          const sampleH = Math.min(height, 40);
+          const imgData = ctx.getImageData(0, 0, sampleW, sampleH).data;
+          let sum = 0;
+          for (let i = 0; i < imgData.length; i += 4) {
+            sum += imgData[i] + imgData[i + 1] + imgData[i + 2];
+          }
+          const avgBrightness = sum / (sampleW * sampleH * 3);
+
+          // If frame is completely black and we have more seek points, try later timestamp
+          const seekPoints = [0.25, 0.5, 0.75, 0.9];
+          if (avgBrightness < 6 && attempt < seekPoints.length && video.duration > 0.5) {
+            video.currentTime = Math.min(video.duration - 0.1, video.duration * seekPoints[attempt]);
+            return;
+          }
+
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+          clearTimeout(timeout);
+          URL.revokeObjectURL(url);
+          resolve({ base64: dataUrl.split(",")[1], mimeType: "image/jpeg" });
+        } catch (e) {
+          clearTimeout(timeout);
+          URL.revokeObjectURL(url);
+          reject(e);
+        }
+      };
+
+      video.onloadedmetadata = () => {
+        const initSeek = video.duration > 1 ? Math.min(1.5, video.duration * 0.25) : 0.1;
+        video.currentTime = initSeek;
+      };
+
+      let attemptCount = 0;
+      video.onseeked = () => {
+        attemptCount++;
+        // Play briefly to ensure browser hardware decoder renders the frame
+        video.play().then(() => {
+          setTimeout(() => {
+            video.pause();
+            tryCapture(attemptCount);
+          }, 100);
+        }).catch(() => {
+          tryCapture(attemptCount);
+        });
+      };
+
+      video.onerror = () => {
+        clearTimeout(timeout);
+        URL.revokeObjectURL(url);
+        reject(new Error("Video playback error during frame extraction"));
+      };
+    });
+  }
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -147,7 +268,7 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
         ctx.drawImage(img, 0, 0, width, height);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
         const base64 = dataUrl.split(",")[1];
-        resolve({ base64, mimeType: "image/jpeg" });
+        resolve({ base64: base64, mimeType: "image/jpeg" });
       };
       img.onerror = () => {
         const raw = (e.target?.result as string).split(",")[1];
@@ -161,11 +282,13 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
 }
 
   async function handleGenerate() {
-    const targetFile = previewFile || masterFile;
+    const targetFile = isMasterVideo ? masterFile : (previewFile || masterFile);
     if (!targetFile) {
-      toast.error("Please select an image first to generate metadata.");
+      toast.error("Please select an asset first to generate metadata.");
       return;
     }
+
+    const hint = targetFile.name.replace(/\.[^/.]+$/, "");
 
     setGenerating(true);
     try {
@@ -174,6 +297,7 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
           key: uploaded.previewKey || uploaded.key,
           bucketId: uploaded.bucketId,
           model: aiModel,
+          hint,
         });
         if (res.error) {
           toast.error(res.error);
@@ -181,13 +305,14 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
         }
         applyGeneratedMetadata(res);
       } else {
-        // Optimize local image before sending base64 to server/AI to prevent latency
+        // Optimize local image or extract frame before sending base64 to AI
         const { base64, mimeType } = await getOptimizedAiImageBase64(targetFile);
 
         const res = await generateMetadataFromFileAction({
           base64,
           mimeType,
           model: aiModel,
+          hint,
         });
 
         if (res.error) {
@@ -215,7 +340,7 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
   }
 
   async function uploadFilesToR2(): Promise<UploadedFile | null> {
-    if (!masterFile || !previewFile) return null;
+    if (!masterFile) return null;
     const bucket = bucketOptions.find((b) => b.value === bucketId);
     if (!bucket) throw new Error("No bucket selected.");
 
@@ -223,14 +348,14 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
       bucketId,
       master: {
         fileName: masterFile.name,
-        contentType: masterFile.type || "image/jpeg",
+        contentType: masterFile.type || (isMasterVideo ? "video/mp4" : "image/jpeg"),
         size: masterFile.size,
       },
-      preview: {
+      preview: previewFile && !isMasterVideo ? {
         fileName: previewFile.name,
         contentType: previewFile.type || "image/jpeg",
         size: previewFile.size,
-      },
+      } : undefined,
     });
 
     if ("error" in res) throw new Error(res.error);
@@ -238,12 +363,12 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
     const uploads = [
       fetch(res.url, {
         method: "PUT",
-        headers: { "Content-Type": masterFile.type || "image/jpeg" },
+        headers: { "Content-Type": masterFile.type || (isMasterVideo ? "video/mp4" : "image/jpeg") },
         body: masterFile,
       }),
     ];
 
-    if (res.previewUrl) {
+    if (res.previewUrl && previewFile && !isMasterVideo) {
       uploads.push(
         fetch(res.previewUrl, {
           method: "PUT",
@@ -260,10 +385,10 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
 
     const uploadedInfo: UploadedFile = {
       key: res.key,
-      previewKey: res.previewKey,
+      previewKey: res.previewKey || "",
       bucketId: res.bucketId,
       bucketName: res.bucketName,
-      sizeBytes: masterFile.size + (res.previewUrl ? previewFile.size : 0),
+      sizeBytes: masterFile.size + (res.previewUrl && previewFile ? previewFile.size : 0),
     };
     setUploaded(uploadedInfo);
     return uploadedInfo;
@@ -274,8 +399,8 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
       toast.error("Please enter a title.");
       return;
     }
-    if (!uploaded && (!masterFile || !previewFile)) {
-      toast.error("Please select both master and preview images.");
+    if (!uploaded && (!masterFile || (!isMasterVideo && !previewFile))) {
+      toast.error(isMasterVideo ? "Please select a video file." : "Please select both master and preview images.");
       return;
     }
 
@@ -283,7 +408,7 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
     try {
       let fileInfo = uploaded;
       if (!fileInfo) {
-        toast.info("Uploading images to Cloudflare R2…");
+        toast.info(isMasterVideo ? "Uploading video to Cloudflare R2…" : "Uploading images to Cloudflare R2…");
         fileInfo = await uploadFilesToR2();
       }
 
@@ -331,26 +456,37 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
   return (
     <div className="space-y-6">
       {/* Top Section: File Dropzones */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={cn("grid gap-3", isMasterVideo ? "grid-cols-1" : "sm:grid-cols-2")}>
         {(
-          [
-            {
-              slot: "master" as const,
-              label: "Master Image",
-              sub: "Full-size original asset",
-              ref: masterInputRef,
-              file: masterFile,
-              url: masterPreviewUrl,
-            },
-            {
-              slot: "preview" as const,
-              label: "Preview Image",
-              sub: "Lightweight web display",
-              ref: previewInputRef,
-              file: previewFile,
-              url: previewPreviewUrl,
-            },
-          ] as const
+          isMasterVideo
+            ? [
+                {
+                  slot: "master" as const,
+                  label: "Master Video Asset",
+                  sub: "Original video file (MP4, WebM, MOV)",
+                  ref: masterInputRef,
+                  file: masterFile,
+                  url: masterPreviewUrl,
+                },
+              ]
+            : [
+                {
+                  slot: "master" as const,
+                  label: "Master Image",
+                  sub: "Full-size original asset",
+                  ref: masterInputRef,
+                  file: masterFile,
+                  url: masterPreviewUrl,
+                },
+                {
+                  slot: "preview" as const,
+                  label: "Preview Image",
+                  sub: "Lightweight web display",
+                  ref: previewInputRef,
+                  file: previewFile,
+                  url: previewPreviewUrl,
+                },
+              ]
         ).map(({ slot, label, sub, ref, file, url }) => (
           <div
             key={slot}
@@ -380,7 +516,7 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
             <input
               ref={ref}
               type="file"
-              accept="image/*"
+              accept={slot === "master" ? "image/*,video/*" : "image/*"}
               className="hidden"
               onChange={(e) => selectFile(slot, e.target.files?.[0] ?? undefined)}
             />
@@ -388,13 +524,17 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
             {slot === "preview" && compressingPreview ? (
               <div className="flex flex-col items-center gap-2 py-4">
                 <CircleNotch className="size-6 animate-spin text-primary" />
-                <p className="text-xs font-semibold text-foreground">Auto-compressing preview…</p>
-                <p className="text-[11px] text-muted-foreground">Optimizing from master image</p>
+                <p className="text-xs font-semibold text-foreground">Generating preview…</p>
+                <p className="text-[11px] text-muted-foreground">Optimizing from master asset</p>
               </div>
             ) : file && url ? (
               <div className="flex w-full items-center gap-3">
                 <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-background">
-                  <Image src={url} alt={label} fill className="object-cover" />
+                  {file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name) ? (
+                    <video src={url} className="size-full object-cover" muted playsInline />
+                  ) : (
+                    <Image src={url} alt={label} fill className="object-cover" />
+                  )}
                 </div>
                 <div className="min-w-0 flex-1 text-left">
                   <div className="flex items-center gap-1.5">
@@ -496,6 +636,7 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
                 { value: "photo", label: "Photo" },
                 { value: "illustration", label: "Illustration" },
                 { value: "3d", label: "3D Render" },
+                { value: "video", label: "Video" },
               ]}
               onValueChange={setCategory}
               className="h-9 text-xs"
@@ -570,7 +711,11 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
       <RippleButton
         type="button"
         className="w-full h-10 gap-2 rounded-xl font-medium shadow-xs"
-        disabled={saving || (!uploaded && (!masterFile || !previewFile)) || !metadata.title.trim()}
+        disabled={
+          saving ||
+          (!uploaded && (!masterFile || (!isMasterVideo && !previewFile))) ||
+          !metadata.title.trim()
+        }
         onClick={handleSaveAndUpload}
       >
         {saving ? (

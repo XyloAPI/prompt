@@ -20,6 +20,7 @@ const categories = [
   { value: "photo", label: "Photos" },
   { value: "illustration", label: "Illustrations" },
   { value: "3d", label: "3D Renders" },
+  { value: "video", label: "Videos" },
 ];
 
 const sortOptions = [
@@ -55,6 +56,11 @@ export function GalleryControls({
     for (const [key, value] of Object.entries(patch)) {
       if (value) params.set(key, value);
       else params.delete(key);
+    }
+    if ("category" in patch) {
+      try {
+        sessionStorage.setItem("home_active_category", patch.category || "");
+      } catch {}
     }
     router.push(`${pathname}?${params.toString()}`);
   };

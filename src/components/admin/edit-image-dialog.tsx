@@ -48,6 +48,7 @@ const categoryOptions: { value: Category; label: string }[] = [
   { value: "photo", label: "Photo" },
   { value: "illustration", label: "Illustration" },
   { value: "3d", label: "3D" },
+  { value: "video", label: "Video" },
 ];
 
 const MODEL_OPTIONS = ALL_VISION_MODELS;
@@ -388,10 +389,15 @@ function FileSlot({
   busy: boolean;
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const isVideo = /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(src);
   return (
     <div className="space-y-2">
       <div className="relative aspect-[16/10] overflow-hidden rounded-xl border border-border/60 bg-muted/30 shadow-xs">
-        <Image src={src} alt={label} fill className="object-cover" sizes="(min-width: 640px) 280px, 100vw" />
+        {isVideo ? (
+          <video src={src} autoPlay loop muted playsInline className="size-full object-cover" />
+        ) : (
+          <Image src={src} alt={label} fill className="object-cover" sizes="(min-width: 640px) 280px, 100vw" />
+        )}
         <div className="absolute top-2.5 left-2.5">
           <span className="rounded-md bg-background/85 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-foreground uppercase backdrop-blur-md shadow-xs border border-border/40">
             {label}
@@ -484,9 +490,25 @@ function DeleteImageButton({ id, title }: { id: string; title: string }) {
 }
 
 export function ImageThumb({ image }: { image: ImageType }) {
+  const isVideo =
+    image.category === "video" ||
+    /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
+    /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url);
+
   return (
     <div className={cn("relative aspect-[4/3] overflow-hidden rounded-lg bg-muted")}>
-      <Image src={image.thumbnailUrl} alt={image.title} fill className="object-cover" sizes="(min-width: 1024px) 200px, 50vw" />
+      {isVideo ? (
+        <video
+          src={image.thumbnailUrl || image.url}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="size-full object-cover"
+        />
+      ) : (
+        <Image src={image.thumbnailUrl} alt={image.title} fill className="object-cover" sizes="(min-width: 1024px) 200px, 50vw" />
+      )}
     </div>
   );
 }

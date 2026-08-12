@@ -98,11 +98,22 @@ export function DownloadButton({
           {/* Preview banner */}
           <div className="flex items-center gap-3.5 rounded-xl border border-border/60 bg-muted/20 p-3">
             <div className="relative size-14 shrink-0 overflow-hidden rounded-lg border border-border/50 bg-background">
-              <img
-                src={thumbnailUrl || url}
-                alt={title}
-                className="size-full object-cover"
-              />
+              {/\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(url || thumbnailUrl || "") ? (
+                <video
+                  src={thumbnailUrl || url}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="size-full object-cover"
+                />
+              ) : (
+                <img
+                  src={thumbnailUrl || url}
+                  alt={title}
+                  className="size-full object-cover"
+                />
+              )}
             </div>
             <div className="min-w-0 flex-1 space-y-0.5">
               <p className="truncate text-sm font-medium text-foreground">{title}</p>

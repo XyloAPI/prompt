@@ -46,6 +46,12 @@ export function Navbar() {
           >
             3D
           </Link>
+          <Link
+            href="/gallery?category=video"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Videos
+          </Link>
         </nav>
 
         <div className="ml-auto flex items-center gap-3">

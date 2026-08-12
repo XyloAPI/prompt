@@ -137,7 +137,8 @@ export function robustParseJson(text: string): Partial<AiMetadata> | null {
 export async function analyzeImageBuffer(
   bytes: Buffer,
   mimeType: string,
-  modelOverride?: string
+  modelOverride?: string,
+  hint?: string
 ): Promise<AnalyzeResult> {
   const settings = await getAiSettings();
   let provider = settings.provider;
@@ -161,14 +162,16 @@ export async function analyzeImageBuffer(
       bytes,
       mimeType,
       modelOverride || settings.nvidiaModel,
-      settings.nvidiaApiKey
+      settings.nvidiaApiKey,
+      hint
     );
   } else {
     return analyzeWithGemini(
       bytes,
       mimeType,
       modelOverride || settings.geminiModel,
-      settings.geminiApiKey
+      settings.geminiApiKey,
+      hint
     );
   }
 }
@@ -177,7 +180,8 @@ async function analyzeWithGemini(
   bytes: Buffer,
   mimeType: string,
   model: string,
-  apiKey: string
+  apiKey: string,
+  hint?: string
 ): Promise<AnalyzeResult> {
   if (!apiKey) {
     return {
@@ -186,15 +190,17 @@ async function analyzeWithGemini(
     };
   }
 
+  const isVideo = mimeType.startsWith("video/");
   const prompt = [
-    "You are an expert design & photography assistant. Analyze this image and generate structured metadata for a modern visual asset library.",
+    `You are an expert ${isVideo ? "cinematography & motion design" : "design & photography"} curator. Analyze this visual asset carefully and generate structured metadata for a modern media asset library.`,
+    hint ? `Reference filename / context: "${hint}"` : "",
     "Return valid JSON with exactly:",
-    '- "title": A short, elegant, punchy title (max 5-6 words, no quotes)',
-    '- "description": A concise, engaging 1-2 sentence description of the subject and visual aesthetic',
+    '- "title": A short, descriptive, elegant, punchy title (max 5-6 words, no quotes)',
+    '- "description": A concise, engaging 1-2 sentence description accurately detailing the subject, lighting, and aesthetic',
     '- "tags": An array of 5-8 relevant lowercase keywords (no hashtags)',
     '- "palette": An array of 4-6 prominent colors with "hex" (e.g. #2D3748) and "name" (color name)',
-    '- "prompt": A high-detail Midjourney/Flux style text prompt that can recreate this exact visual (lighting, camera lens, composition, style, color mood)',
-  ].join("\n");
+    '- "prompt": A high-detail AI generation prompt that accurately recreates this exact visual subject, lighting, lens/camera, mood, and art style',
+  ].filter(Boolean).join("\n");
 
   try {
     const res = await fetch(
@@ -299,7 +305,8 @@ async function analyzeWithNvidiaNim(
   bytes: Buffer,
   mimeType: string,
   model: string,
-  apiKey: string
+  apiKey: string,
+  hint?: string
 ): Promise<AnalyzeResult> {
   if (!apiKey) {
     return {
@@ -311,17 +318,18 @@ async function analyzeWithNvidiaNim(
   const base64Url = `data:${mimeType};base64,${bytes.toString("base64")}`;
 
   const prompt = [
-    "You are an expert design & photography assistant. Analyze this image and generate structured metadata for a modern visual asset library.",
+    "You are an expert visual asset curator. Analyze this visual asset and generate structured metadata for a modern visual asset library.",
+    hint ? `Reference filename / context: "${hint}"` : "",
     "Respond strictly in valid JSON format with this exact structure:",
     "{",
-    '  "title": "A short, elegant, punchy title (max 5-6 words, no quotes)",',
-    '  "description": "A concise, engaging 1-2 sentence description of the subject and visual aesthetic",',
+    '  "title": "A short, descriptive, elegant, punchy title (max 5-6 words, no quotes)",',
+    '  "description": "A concise, engaging 1-2 sentence description accurately detailing the subject, lighting, and aesthetic",',
     '  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6"],',
     '  "palette": [{"hex": "#2D3748", "name": "Slate"}, {"hex": "#E2E8F0", "name": "Light Gray"}],',
-    '  "prompt": "A high-detail Midjourney/Flux style text prompt that can recreate this exact visual (lighting, camera lens, composition, style, color mood)"',
+    '  "prompt": "A high-detail AI generation prompt that accurately recreates this exact visual subject, lighting, lens/camera, mood, and art style"',
     "}",
     "Output only the JSON object without markdown fences or additional commentary.",
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   try {
     const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {

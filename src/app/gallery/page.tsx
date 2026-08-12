@@ -26,7 +26,7 @@ type Props = {
 export default async function GalleryPage({ searchParams }: Props) {
   const sp = await searchParams;
 
-  const category = (["photo", "illustration", "3d"] as Category[]).includes(
+  const category = (["photo", "illustration", "3d", "video"] as Category[]).includes(
     sp.category as Category
   )
     ? (sp.category as Category)

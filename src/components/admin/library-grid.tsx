@@ -22,6 +22,7 @@ const categoryOptions: { value: Category | "all"; label: string }[] = [
   { value: "photo", label: "Photos" },
   { value: "illustration", label: "Illustrations" },
   { value: "3d", label: "3D Renders" },
+  { value: "video", label: "Videos" },
 ];
 
 export function LibraryGrid({
@@ -35,6 +36,22 @@ export function LibraryGrid({
   const [search, setSearch] = React.useState("");
   const [sortBy, setSortBy] = React.useState<"newest" | "downloads" | "trending">("newest");
   const [editing, setEditing] = React.useState<ImageType | null>(null);
+
+  React.useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem("admin_library_filter");
+      if (saved && ["all", "photo", "illustration", "3d", "video"].includes(saved)) {
+        setFilter(saved as Category | "all");
+      }
+    } catch {}
+  }, []);
+
+  const handleFilterChange = (cat: Category | "all") => {
+    setFilter(cat);
+    try {
+      sessionStorage.setItem("admin_library_filter", cat);
+    } catch {}
+  };
 
   const filtered = React.useMemo(() => {
     let list = images;
@@ -67,6 +84,7 @@ export function LibraryGrid({
       photo: images.filter((i) => i.category === "photo").length,
       illustration: images.filter((i) => i.category === "illustration").length,
       "3d": images.filter((i) => i.category === "3d").length,
+      video: images.filter((i) => i.category === "video").length,
     };
   }, [images]);
 
@@ -111,7 +129,7 @@ export function LibraryGrid({
             <button
               key={opt.value}
               type="button"
-              onClick={() => setFilter(opt.value)}
+              onClick={() => handleFilterChange(opt.value)}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-150",
                 isSelected
@@ -164,13 +182,26 @@ export function LibraryGrid({
             >
               {/* Thumbnail Container */}
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
-                <Image
-                  src={image.thumbnailUrl}
-                  alt={image.title}
-                  fill
-                  className="object-cover"
-                  sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
-                />
+                {image.category === "video" ||
+                /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
+                /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url) ? (
+                  <video
+                    src={image.thumbnailUrl || image.url}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <Image
+                    src={image.thumbnailUrl}
+                    alt={image.title}
+                    fill
+                    className="object-cover"
+                    sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
+                  />
+                )}
 
                 {/* Quick overlay buttons */}
                 <div className="absolute inset-0 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center gap-2">
@@ -183,7 +214,13 @@ export function LibraryGrid({
                     <PencilSimple className="size-4" />
                   </button>
                   <Link
-                    href={`/image/${image.id}`}
+                    href={
+                      image.category === "video" ||
+                      /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
+                      /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url)
+                        ? `/video/${image.id}`
+                        : `/image/${image.id}`
+                    }
                     target="_blank"
                     className="inline-flex size-8 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm hover:bg-background transition-transform active:scale-95"
                     title="View public page"
