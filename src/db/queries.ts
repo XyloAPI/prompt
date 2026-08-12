@@ -57,13 +57,14 @@ export async function getImageById(id: string): Promise<Image | null> {
 }
 
 export async function getRelatedImages(image: Image, limit = 4): Promise<Image[]> {
+  const { rankSimilarImages } = await import("@/lib/similarity");
   const db = (await import("@/db")).db;
-  return db
+  const candidates = await db
     .select()
     .from(images)
-    .where(and(eq(images.category, image.category), sql`${images.id} != ${image.id}`))
-    .orderBy(desc(images.trending))
-    .limit(limit);
+    .where(sql`${images.id} != ${image.id}`);
+
+  return rankSimilarImages(image, candidates, limit);
 }
 
 export async function incrementDownloads(id: string): Promise<number> {

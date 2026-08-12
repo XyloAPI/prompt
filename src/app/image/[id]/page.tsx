@@ -30,7 +30,7 @@ export default async function ImageDetailPage({ params }: { params: Promise<{ id
   if (!image) notFound();
 
   const [related] = await Promise.all([
-    relatedImages(image, 4),
+    relatedImages(image, 8),
   ]);
 
   const tags = image.tags ?? [];

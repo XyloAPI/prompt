@@ -98,6 +98,46 @@ export function UploadForm({
     }
   }
 
+async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ base64: string; mimeType: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          const raw = (e.target?.result as string).split(",")[1];
+          return resolve({ base64: raw, mimeType: file.type || "image/jpeg" });
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        const base64 = dataUrl.split(",")[1];
+        resolve({ base64, mimeType: "image/jpeg" });
+      };
+      img.onerror = () => {
+        const raw = (e.target?.result as string).split(",")[1];
+        resolve({ base64: raw, mimeType: file.type || "image/jpeg" });
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
   async function handleGenerate() {
     const targetFile = previewFile || masterFile;
     if (!targetFile) {
@@ -119,22 +159,12 @@ export function UploadForm({
         }
         applyGeneratedMetadata(res);
       } else {
-        // Generate directly from local file base64
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onload = () => {
-            const result = reader.result as string;
-            const base64 = result.split(",")[1];
-            resolve(base64);
-          };
-          reader.onerror = reject;
-        });
-        reader.readAsDataURL(targetFile);
-        const base64 = await base64Promise;
+        // Optimize local image before sending base64 to server/AI to prevent latency
+        const { base64, mimeType } = await getOptimizedAiImageBase64(targetFile);
 
         const res = await generateMetadataFromFileAction({
           base64,
-          mimeType: targetFile.type || "image/jpeg",
+          mimeType,
           model: aiModel,
         });
 

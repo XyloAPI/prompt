@@ -1,6 +1,7 @@
 import type { Category, Image } from "@/db/schema";
 import * as query from "@/db/queries";
 import { memoryImages } from "@/lib/memory";
+import { rankSimilarImages } from "@/lib/similarity";
 
 export async function useDbFallback(): Promise<boolean> {
   return await query.hasDb();
@@ -62,14 +63,14 @@ export async function imageById(id: string): Promise<Image | null> {
 
 export async function relatedImages(image: Image, limit = 4): Promise<Image[]> {
   if (!await query.hasDb()) {
-    const all = memoryImages().filter((i) => i.id !== image.id);
-    return shuffle(all).slice(0, limit);
+    const all = memoryImages();
+    return rankSimilarImages(image, all, limit);
   }
   try {
     return await query.getRelatedImages(image, limit);
   } catch {
-    const all = memoryImages().filter((i) => i.id !== image.id);
-    return shuffle(all).slice(0, limit);
+    const all = memoryImages();
+    return rankSimilarImages(image, all, limit);
   }
 }
 

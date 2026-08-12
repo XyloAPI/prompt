@@ -201,6 +201,7 @@ async function analyzeWithGemini(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         method: "POST",
+        signal: AbortSignal.timeout(20000),
         headers: {
           "Content-Type": "application/json",
           "x-goog-api-key": apiKey,
@@ -286,7 +287,10 @@ async function analyzeWithGemini(
         prompt: String(parsed.prompt ?? "").trim(),
       },
     };
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+      return { ok: false, error: "Gemini request timed out (20s). Please try again or switch model." };
+    }
     return { ok: false, error: err instanceof Error ? err.message : "Gemini request error." };
   }
 }
@@ -322,6 +326,7 @@ async function analyzeWithNvidiaNim(
   try {
     const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
       method: "POST",
+      signal: AbortSignal.timeout(20000),
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
@@ -384,7 +389,10 @@ async function analyzeWithNvidiaNim(
         prompt: String(parsed.prompt ?? "").trim(),
       },
     };
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+      return { ok: false, error: "NVIDIA NIM request timed out (20s). Please try again or switch model." };
+    }
     return { ok: false, error: err instanceof Error ? err.message : "NVIDIA NIM request error." };
   }
 }
