@@ -32,7 +32,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" suppressHydrationWarning className="dark">
-      <body className={`${spaceGrotesk.variable} ${manrope.variable} min-h-full flex flex-col font-sans antialiased`}>
+      <body suppressHydrationWarning className={`${spaceGrotesk.variable} ${manrope.variable} min-h-full flex flex-col font-sans antialiased`}>
         <ThemeProvider>
           <Navbar />
           <main className="flex-1">{children}</main>

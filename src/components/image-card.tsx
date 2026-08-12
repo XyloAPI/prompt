@@ -26,11 +26,12 @@ export function ImageCard({
     >
       {isVideo ? (
         <video
-          src={image.thumbnailUrl || image.url}
+          src={image.url || image.thumbnailUrl}
           autoPlay
           loop
           muted
           playsInline
+          preload="auto"
           className="size-full object-cover"
         />
       ) : (

@@ -95,14 +95,24 @@ export function ImageDetailsCard({
           <CalendarBlank className="size-3.5" />
           <span>Added</span>
         </span>
-        <span className="font-medium text-foreground">
-          {new Date(createdAt).toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          })}
+        <span className="font-medium text-foreground" suppressHydrationWarning>
+          {formatAddedDate(createdAt)}
         </span>
       </div>
     </div>
   );
+}
+
+function formatAddedDate(dateVal: string | number | Date): string {
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return String(dateVal);
+    const months = [
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    ];
+    return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+  } catch {
+    return String(dateVal);
+  }
 }
