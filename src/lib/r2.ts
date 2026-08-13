@@ -44,6 +44,21 @@ export async function createPresignedUploadUrl(opts: {
   });
 }
 
+export async function createPresignedDownloadUrl(opts: {
+  account: R2Account;
+  bucketName: string;
+  key: string;
+  expiresIn?: number;
+}): Promise<string> {
+  const command = new GetObjectCommand({
+    Bucket: opts.bucketName,
+    Key: opts.key,
+  });
+  return getSignedUrl(getClient(opts.account), command, {
+    expiresIn: opts.expiresIn ?? 3600,
+  });
+}
+
 export async function getObjectBuffer(opts: {
   account: R2Account;
   bucketName: string;

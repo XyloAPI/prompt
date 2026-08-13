@@ -22,8 +22,17 @@ export function ImageCard({
     /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
     /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url);
 
-  const isThumbnailVideo =
-    /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl);
+  const hasSeparatePreview = Boolean(
+    image.thumbnailUrl &&
+    image.thumbnailUrl !== image.url &&
+    image.thumbnailUrl.includes("/preview/")
+  );
+
+  const previewUrl = isVideo
+    ? (hasSeparatePreview ? image.thumbnailUrl : "")
+    : (image.thumbnailUrl || image.url);
+
+  const isThumbnailVideo = /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(previewUrl);
 
   const videoRef = React.useRef<HTMLVideoElement>(null);
 
@@ -44,10 +53,17 @@ export function ImageCard({
         }
       }}
     >
-      {isThumbnailVideo ? (
+      {!previewUrl ? (
+        <div className="flex size-full min-h-[160px] flex-col items-center justify-center bg-muted/40 text-muted-foreground p-4 text-center">
+          <div className="flex size-10 items-center justify-center rounded-full bg-background/70 shadow-xs mb-2">
+            <Play className="size-4 fill-muted-foreground/60 text-muted-foreground/60 ml-0.5" />
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">No Preview</span>
+        </div>
+      ) : isThumbnailVideo ? (
         <video
           ref={videoRef}
-          src={image.thumbnailUrl || image.url}
+          src={previewUrl}
           loop
           muted
           playsInline
@@ -56,7 +72,7 @@ export function ImageCard({
         />
       ) : (
         <Image
-          src={image.thumbnailUrl || image.url}
+          src={previewUrl}
           alt={image.title}
           fill
           sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"

@@ -9,6 +9,7 @@ import {
   DownloadSimple,
   MagnifyingGlass,
   PencilSimple,
+  Play,
   SlidersHorizontal,
 } from "@phosphor-icons/react";
 import type { Category, Image as ImageType } from "@/db/schema";
@@ -182,31 +183,54 @@ export function LibraryGrid({
             >
               {/* Thumbnail Container */}
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
-                {/\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ? (
-                  <video
-                    src={image.thumbnailUrl || image.url}
-                    loop
-                    muted
-                    playsInline
-                    preload="metadata"
-                    onMouseEnter={(e) => {
-                      e.currentTarget.play().catch(() => {});
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.pause();
-                      e.currentTarget.currentTime = 0;
-                    }}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <Image
-                    src={image.thumbnailUrl}
-                    alt={image.title}
-                    fill
-                    className="object-cover"
-                    sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
-                  />
-                )}
+                {(() => {
+                  const isVideo = image.category === "video" || /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url);
+                  const hasSeparatePreview = Boolean(
+                    image.thumbnailUrl &&
+                    image.thumbnailUrl !== image.url &&
+                    image.thumbnailUrl.includes("/preview/")
+                  );
+                  const previewUrl = isVideo ? (hasSeparatePreview ? image.thumbnailUrl : "") : (image.thumbnailUrl || image.url);
+
+                  if (!previewUrl) {
+                    return (
+                      <div className="flex size-full flex-col items-center justify-center bg-muted/40 text-muted-foreground p-3 text-center">
+                        <Play className="size-6 text-muted-foreground/60 mb-1" />
+                        <span className="text-[11px] font-medium text-muted-foreground">No Preview</span>
+                      </div>
+                    );
+                  }
+
+                  if (/\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(previewUrl)) {
+                    return (
+                      <video
+                        src={previewUrl}
+                        loop
+                        muted
+                        playsInline
+                        preload="metadata"
+                        onMouseEnter={(e) => {
+                          e.currentTarget.play().catch(() => {});
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.pause();
+                          e.currentTarget.currentTime = 0;
+                        }}
+                        className="size-full object-cover"
+                      />
+                    );
+                  }
+
+                  return (
+                    <Image
+                      src={previewUrl}
+                      alt={image.title}
+                      fill
+                      className="object-cover"
+                      sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
+                    />
+                  );
+                })()}
 
                 {/* Quick overlay buttons */}
                 <div className="absolute inset-0 bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 flex items-center justify-center gap-2">

@@ -4,7 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Trash, Sparkle, CircleNotch, UploadSimple } from "@phosphor-icons/react";
+import { Trash, Sparkle, CircleNotch, UploadSimple, Play } from "@phosphor-icons/react";
 import {
   createReplaceUploadAction,
   generateMetadataAction,
@@ -592,13 +592,24 @@ function DeleteImageButton({ id, title }: { id: string; title: string }) {
 }
 
 export function ImageThumb({ image }: { image: ImageType }) {
-  const isThumbnailVideo = /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl);
+  const isVideo = image.category === "video" || /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url);
+  const hasSeparatePreview = Boolean(
+    image.thumbnailUrl &&
+    image.thumbnailUrl !== image.url &&
+    image.thumbnailUrl.includes("/preview/")
+  );
+  const previewUrl = isVideo ? (hasSeparatePreview ? image.thumbnailUrl : "") : (image.thumbnailUrl || image.url);
 
   return (
     <div className={cn("relative aspect-[4/3] overflow-hidden rounded-lg bg-muted")}>
-      {isThumbnailVideo ? (
+      {!previewUrl ? (
+        <div className="flex size-full flex-col items-center justify-center bg-muted/40 text-muted-foreground p-2 text-center">
+          <Play className="size-5 text-muted-foreground/60 mb-1" />
+          <span className="text-[10px] font-medium text-muted-foreground">No Preview</span>
+        </div>
+      ) : /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(previewUrl) ? (
         <video
-          src={image.thumbnailUrl || image.url}
+          src={previewUrl}
           loop
           muted
           playsInline
@@ -606,7 +617,7 @@ export function ImageThumb({ image }: { image: ImageType }) {
           className="size-full object-cover"
         />
       ) : (
-        <Image src={image.thumbnailUrl || image.url} alt={image.title} fill className="object-cover" sizes="(min-width: 1024px) 200px, 50vw" />
+        <Image src={previewUrl} alt={image.title} fill className="object-cover" sizes="(min-width: 1024px) 200px, 50vw" />
       )}
     </div>
   );
