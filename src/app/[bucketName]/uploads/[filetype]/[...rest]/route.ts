@@ -1,17 +1,16 @@
 import { getR2BucketByName, getR2Accounts } from "@/db/queries";
-import { createPresignedDownloadUrl } from "@/lib/r2";
+import { AwsClient } from "aws4fetch";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Redirects to R2 presigned URLs.
+ * Serves R2 objects by proxying the bytes through the worker — no redirect.
  * - Master:  /<bucket>/uploads/<filetype>/<slug>            → key `images/<slug>`
  * - Preview: /<bucket>/uploads/<filetype>/preview/<slug>    → key `images/preview/<slug>`
  *
- * No existence pre-flight is performed here: it would require an aws-sdk S3
- * request, which fails inside the Cloudflare Worker runtime. Instead the
- * browser is redirected straight to the presigned URL and R2 answers 404 on
- * its own for missing keys.
+ * The browser only ever sees the web-domain URL; the R2 origin (and any
+ * signature) stays server-side. Range requests are forwarded so <video>
+ * seeking and resume work. Missing objects surface R2's own 404.
  */
 export async function GET(
   request: Request,
@@ -33,17 +32,38 @@ export async function GET(
   const key = `images/${parts.join("/")}`;
 
   try {
-    // Generate presigned GET url and redirect to it (valid for 1 hour)
-    const presignedUrl = await createPresignedDownloadUrl({
-      account,
-      bucketName: bucket.name,
-      key,
-      expiresIn: 3600,
+    const client = new AwsClient({
+      accessKeyId: account.accessKeyId,
+      secretAccessKey: account.secretAccessKey,
+      service: "s3",
+      region: "auto",
     });
 
-    return Response.redirect(presignedUrl, 302);
+    const upstream = await client.fetch(
+      `https://${account.accountId}.r2.cloudflarestorage.com/${bucket.name}/${key}`,
+      {
+        method: "GET",
+        headers:
+          typeof request.headers.get("range") === "string"
+            ? { Range: request.headers.get("range")! }
+            : undefined,
+      }
+    );
+
+    const outHeaders = new Headers();
+    for (const h of ["content-type", "content-length", "content-range", "etag"]) {
+      const v = upstream.headers.get(h);
+      if (v) outHeaders.set(h, v);
+    }
+    outHeaders.set("accept-ranges", "bytes");
+    outHeaders.set("cache-control", "public, max-age=86400, s-maxage=86400");
+
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: outHeaders,
+    });
   } catch (err) {
-    console.error("Presigned URL generation failed:", err);
+    console.error("R2 proxy failed:", err);
     return new Response("Internal Server Error", { status: 500 });
   }
 }
