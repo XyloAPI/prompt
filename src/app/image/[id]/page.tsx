@@ -11,6 +11,7 @@ import { Masonry, MasonryItem } from "@/components/masonry";
 import { Separator } from "@/components/ui/separator";
 import { ImageDetailsCard } from "@/components/image-display-section";
 
+import { VideoPlayer } from "@/components/video-player";
 import { DetailBackButton } from "@/components/detail-back-button";
 
 const categoryLabels: Record<string, string> = {
@@ -47,8 +48,8 @@ export default async function ImageDetailPage({ params }: { params: Promise<{ id
 
       <div className="grid items-start gap-8 lg:grid-cols-[1fr_360px] xl:gap-12">
         {/* Main image / video presentation */}
-        <div className="flex items-start justify-center">
-          <div className="relative inline-flex overflow-hidden rounded-2xl border border-border/60 bg-muted/20 shadow-2xl">
+        <div className="flex items-start justify-center min-w-0">
+          <div className="relative inline-flex max-w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/20 shadow-2xl">
             {image.thumbnailUrl && (
               <div
                 className="pointer-events-none absolute -inset-4 scale-110 opacity-20 blur-3xl filter"
@@ -60,14 +61,15 @@ export default async function ImageDetailPage({ params }: { params: Promise<{ id
               />
             )}
             {isVideo ? (
-              <video
+              <VideoPlayer
                 src={image.url}
-                controls
+                poster={image.thumbnailUrl}
+                title={image.title}
+                width={image.width}
+                height={image.height}
                 autoPlay
                 loop
-                muted
-                playsInline
-                className="relative z-10 block h-auto max-h-[calc(100vh-8rem)] w-auto max-w-full rounded-2xl object-contain bg-black/40"
+                className="relative z-10"
               />
             ) : (
               <img
