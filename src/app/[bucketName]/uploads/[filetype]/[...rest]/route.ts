@@ -45,33 +45,6 @@ export async function GET(
   // Check if primary key exists
   if (await checkExists({ account, bucketName: bucket.name, key: primaryKey })) {
     resolvedKey = primaryKey;
-  } else {
-    // Preview fallback logic
-    const isPreviewRequest = primaryKey.includes("/preview/") || parts.includes("preview");
-
-    // Only allow fallback to master if the filetype is image
-    if (isPreviewRequest && filetype === "image") {
-      const fallbackKey = primaryKey.replace("/preview/", "/");
-      if (await checkExists({ account, bucketName: bucket.name, key: fallbackKey })) {
-        resolvedKey = fallbackKey;
-      }
-    }
-
-    // Try alternate extension fallback for master files or image fallbacks
-    if (!resolvedKey && (!isPreviewRequest || filetype === "image")) {
-      const extMatch = primaryKey.match(/\.[a-z0-9]+$/i);
-      const altExts = [".mp4", ".jpg", ".png", ".webp", ".webm", ".mov"];
-      for (const alt of altExts) {
-        if (extMatch && extMatch[0].toLowerCase() === alt) continue;
-        const testKey = extMatch
-          ? primaryKey.slice(0, -extMatch[0].length) + alt
-          : primaryKey + alt;
-        if (await checkExists({ account, bucketName: bucket.name, key: testKey })) {
-          resolvedKey = testKey;
-          break;
-        }
-      }
-    }
   }
 
   if (!resolvedKey) {
