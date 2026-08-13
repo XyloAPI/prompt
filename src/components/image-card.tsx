@@ -73,13 +73,17 @@ export function ImageCard({
         />
       )}
 
-      {/* Video Indicator Badge */}
-      {isVideo && (
-        <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-white uppercase backdrop-blur-md border border-white/10 shadow-xs">
-          <Play className="size-2.5 fill-white" />
-          <span>Video</span>
-        </div>
-      )}
+      {/* Category Indicator Badge */}
+      <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-white uppercase backdrop-blur-md border border-white/10 shadow-xs">
+        {isVideo ? (
+          <>
+            <Play className="size-2.5 fill-white" />
+            <span>Video</span>
+          </>
+        ) : (
+          <span>{image.category === "3d" ? "3D" : image.category}</span>
+        )}
+      </div>
 
       {/* Hover overlay text */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-4 pt-12 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
