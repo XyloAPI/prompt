@@ -389,29 +389,99 @@ function FileSlot({
   busy: boolean;
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const isVideo = /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(src);
+  const [dragging, setDragging] = React.useState(false);
+  const [localUrl, setLocalUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setLocalUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setLocalUrl(null);
+    }
+  }, [file]);
+
+  const displaySrc = localUrl || src;
+  const isVideo = file
+    ? file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name)
+    : /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(displaySrc);
+
+  const handleIncomingFile = (f: File | null | undefined) => {
+    if (!f) return;
+    const isMaster = label.toLowerCase().includes("master");
+    if (!isMaster && !f.type.startsWith("image/")) {
+      toast.error("Please choose an image file for preview.");
+      return;
+    }
+    onSelect(f);
+  };
+
   return (
     <div className="space-y-2">
-      <div className="relative aspect-[16/10] overflow-hidden rounded-xl border border-border/60 bg-muted/30 shadow-xs">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => e.key === "Enter" && inputRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          handleIncomingFile(e.dataTransfer.files?.[0]);
+        }}
+        className={cn(
+          "group relative aspect-[16/10] cursor-pointer overflow-hidden rounded-xl border transition-all shadow-xs select-none",
+          dragging
+            ? "border-primary bg-primary/20 ring-2 ring-primary/40"
+            : "border-border/60 bg-muted/30 hover:border-border hover:bg-muted/50"
+        )}
+      >
         {isVideo ? (
           <video
-            src={src}
+            key={displaySrc}
+            src={displaySrc}
             loop
             muted
             playsInline
             preload="metadata"
-            controls
-            className="size-full object-cover"
+            className="size-full object-cover pointer-events-none"
           />
         ) : (
-          <Image src={src} alt={label} fill className="object-cover" sizes="(min-width: 640px) 280px, 100vw" />
+          <Image src={displaySrc} alt={label} fill className="object-cover pointer-events-none" sizes="(min-width: 640px) 280px, 100vw" />
         )}
-        <div className="absolute top-2.5 left-2.5">
+
+        {/* Top Badges */}
+        <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 pointer-events-none">
           <span className="rounded-md bg-background/85 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-foreground uppercase backdrop-blur-md shadow-xs border border-border/40">
             {label}
           </span>
+          {file && (
+            <span className="rounded-md bg-amber-500/90 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md shadow-xs">
+              Pending Upload
+            </span>
+          )}
+        </div>
+
+        {/* Hover / Drag Overlay */}
+        <div
+          className={cn(
+            "absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs text-white transition-opacity p-3 text-center pointer-events-none",
+            dragging ? "opacity-100 bg-primary/80" : "opacity-0 group-hover:opacity-100"
+          )}
+        >
+          <UploadSimple className="size-6 mb-1 text-white animate-bounce" />
+          <p className="text-xs font-semibold">Drop file to replace {label.toLowerCase()}</p>
+          <p className="text-[10px] text-white/80 mt-0.5">
+            {label.toLowerCase().includes("master") ? "Image or Video (MP4, WebM)" : "Compressed Image (JPEG, PNG, WebP)"}
+          </p>
         </div>
       </div>
+
       <div className="flex items-center gap-2">
         <input
           ref={inputRef}
@@ -419,16 +489,8 @@ function FileSlot({
           accept={label.toLowerCase().includes("master") ? "image/*,video/*" : "image/*"}
           className="hidden"
           onChange={(e) => {
-            const f = e.target.files?.[0] ?? null;
-            if (f) {
-              const isMaster = label.toLowerCase().includes("master");
-              if (!isMaster && !f.type.startsWith("image/")) {
-                toast.error("Please choose an image file for preview.");
-                return;
-              }
-              onSelect(f);
-              e.target.value = "";
-            }
+            handleIncomingFile(e.target.files?.[0]);
+            e.target.value = "";
           }}
         />
         <Button
@@ -443,7 +505,14 @@ function FileSlot({
           <span className="truncate">{busy ? "Replacing…" : file ? file.name : "Replace file"}</span>
         </Button>
         {file && (
-          <Button type="button" size="sm" className="h-8 text-xs" onClick={onReplace} disabled={busy}>
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90"
+            onClick={onReplace}
+            disabled={busy}
+          >
+            {busy ? <CircleNotch className="size-3.5 animate-spin mr-1" /> : null}
             Upload
           </Button>
         )}
