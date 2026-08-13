@@ -87,12 +87,13 @@ export function EditImageDialog({
     }
     setReplacing(slot);
     try {
+      const ext = file.name.split(".").pop() || (file.type.startsWith("video/") ? "mp4" : "jpg");
       const key =
         slot === "master"
           ? image.r2Key
           : image.r2Key.startsWith("images/")
-            ? `images/preview/${image.r2Key.slice("images/".length)}`
-            : image.r2Key;
+            ? `images/preview/${image.r2Key.slice("images/".length).replace(/\.[^.]+$/, "")}.${ext}`
+            : `images/preview/${image.id}.${ext}`;
 
       const res = await createReplaceUploadAction({
         bucketId: image.bucketId,
@@ -117,32 +118,42 @@ export function EditImageDialog({
       }
       if (slot === "master") {
         setMasterFile(null);
-        // Calculate new master dimensions
-        const img = new window.Image();
-        const objectUrl = URL.createObjectURL(file);
-        img.onload = async () => {
-          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-            await updateImageAction({
-              id: image.id,
-              title: metadata.title,
-              description: metadata.description,
-              category: metadata.category,
-              tags: metadata.tags,
-              palette: metadata.palette,
-              prompt: metadata.prompt,
-              width: img.naturalWidth,
-              height: img.naturalHeight,
-            });
-          }
-          URL.revokeObjectURL(objectUrl);
-        };
-        img.onerror = () => URL.revokeObjectURL(objectUrl);
-        img.src = objectUrl;
+        if (file.type.startsWith("image/")) {
+          const img = new window.Image();
+          const objectUrl = URL.createObjectURL(file);
+          img.onload = async () => {
+            if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+              await updateImageAction({
+                id: image.id,
+                title: metadata.title,
+                description: metadata.description,
+                category: metadata.category,
+                tags: metadata.tags,
+                palette: metadata.palette,
+                prompt: metadata.prompt,
+                width: img.naturalWidth,
+                height: img.naturalHeight,
+              });
+            }
+            URL.revokeObjectURL(objectUrl);
+          };
+          img.onerror = () => URL.revokeObjectURL(objectUrl);
+          img.src = objectUrl;
+        }
       } else {
         setPreviewFile(null);
+        await updateImageAction({
+          id: image.id,
+          title: metadata.title,
+          description: metadata.description,
+          category: metadata.category,
+          tags: metadata.tags,
+          palette: metadata.palette,
+          prompt: metadata.prompt,
+        });
       }
       await refreshImageSizeAction(image.id);
-      toast.success(`${slot === "master" ? "Master" : "Preview"} replaced`);
+      toast.success(`${slot === "master" ? "Master" : "Preview"} updated`);
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Replace failed.");
@@ -209,6 +220,14 @@ export function EditImageDialog({
     }
   }
 
+  const isImageCategory = metadata.category === "photo" || metadata.category === "illustration";
+  const hasSeparatePreview = Boolean(
+    image.thumbnailUrl &&
+    image.thumbnailUrl !== image.url &&
+    image.thumbnailUrl.includes("/preview/")
+  );
+  const previewSrc = isImageCategory ? image.thumbnailUrl : (hasSeparatePreview ? image.thumbnailUrl : "");
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] sm:max-w-2xl flex flex-col p-0 gap-0 overflow-hidden">
@@ -230,7 +249,7 @@ export function EditImageDialog({
             />
             <FileSlot
               label="Preview"
-              src={image.thumbnailUrl}
+              src={previewSrc}
               file={previewFile}
               onSelect={(f) => setPreviewFile(f)}
               onReplace={() => previewFile && replaceFile("preview", previewFile)}
@@ -409,11 +428,6 @@ function FileSlot({
 
   const handleIncomingFile = (f: File | null | undefined) => {
     if (!f) return;
-    const isMaster = label.toLowerCase().includes("master");
-    if (!isMaster && !f.type.startsWith("image/")) {
-      toast.error("Please choose an image file for preview.");
-      return;
-    }
     onSelect(f);
   };
 
@@ -441,18 +455,26 @@ function FileSlot({
             : "border-border/60 bg-muted/30 hover:border-border hover:bg-muted/50"
         )}
       >
-        {isVideo ? (
-          <video
-            key={displaySrc}
-            src={displaySrc}
-            loop
-            muted
-            playsInline
-            preload="metadata"
-            className="size-full object-cover pointer-events-none"
-          />
+        {displaySrc ? (
+          isVideo ? (
+            <video
+              key={displaySrc}
+              src={displaySrc}
+              loop
+              muted
+              playsInline
+              preload="metadata"
+              className="size-full object-cover pointer-events-none"
+            />
+          ) : (
+            <Image src={displaySrc} alt={label} fill className="object-cover pointer-events-none" sizes="(min-width: 640px) 280px, 100vw" />
+          )
         ) : (
-          <Image src={displaySrc} alt={label} fill className="object-cover pointer-events-none" sizes="(min-width: 640px) 280px, 100vw" />
+          <div className="flex size-full flex-col items-center justify-center gap-1.5 p-4 text-center text-muted-foreground pointer-events-none">
+            <UploadSimple className="size-6 text-muted-foreground/60" />
+            <p className="text-xs font-semibold text-foreground">No preview file uploaded</p>
+            <p className="text-[11px] text-muted-foreground">Drop or click to add preview</p>
+          </div>
         )}
 
         {/* Top Badges */}
@@ -475,9 +497,9 @@ function FileSlot({
           )}
         >
           <UploadSimple className="size-6 mb-1 text-white animate-bounce" />
-          <p className="text-xs font-semibold">Drop file to replace {label.toLowerCase()}</p>
+          <p className="text-xs font-semibold">Drop file to {displaySrc ? "replace" : "add"} {label.toLowerCase()}</p>
           <p className="text-[10px] text-white/80 mt-0.5">
-            {label.toLowerCase().includes("master") ? "Image or Video (MP4, WebM)" : "Compressed Image (JPEG, PNG, WebP)"}
+            Video or Image (MP4, WebM, WebP, JPG)
           </p>
         </div>
       </div>
@@ -486,7 +508,7 @@ function FileSlot({
         <input
           ref={inputRef}
           type="file"
-          accept={label.toLowerCase().includes("master") ? "image/*,video/*" : "image/*"}
+          accept="image/*,video/*"
           className="hidden"
           onChange={(e) => {
             handleIncomingFile(e.target.files?.[0]);
@@ -502,7 +524,7 @@ function FileSlot({
           disabled={busy}
         >
           <UploadSimple className="size-3.5 shrink-0 mr-1 text-muted-foreground" />
-          <span className="truncate">{busy ? "Replacing…" : file ? file.name : "Replace file"}</span>
+          <span className="truncate">{busy ? "Uploading…" : file ? file.name : displaySrc ? "Replace file" : "Add preview file"}</span>
         </Button>
         {file && (
           <Button

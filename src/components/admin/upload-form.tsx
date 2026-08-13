@@ -159,7 +159,10 @@ export function UploadForm({
 
       if (isVideo) {
         setCategory("video");
-        setCompressingPreview(true);
+        setPreviewFile(null);
+        setPreviewPreviewUrl(null);
+        setIsAutoCompressed(false);
+        setCompressingPreview(false);
 
         const video = document.createElement("video");
         video.src = url;
@@ -172,32 +175,6 @@ export function UploadForm({
             setMasterDimensions({ width: video.videoWidth, height: video.videoHeight });
           }
         };
-
-        // Automatically extract a frame as the compressed preview image
-        extractVideoFrame(file)
-          .then(async (blob) => {
-            if (blob) {
-              const frameFile = new File([blob], `${file.name.replace(/\.[^.]+$/, "")}-preview.jpg`, {
-                type: "image/jpeg",
-              });
-              const compressed = await compressImage(frameFile, {
-                quality: 0.82,
-                maxWidth: 1920,
-                maxHeight: 1920,
-                mimeType: "image/jpeg",
-              });
-              const compressedUrl = URL.createObjectURL(compressed);
-              setPreviewFile(compressed);
-              setPreviewPreviewUrl(compressedUrl);
-              setIsAutoCompressed(true);
-            }
-          })
-          .catch((err) => {
-            console.error("Failed to extract video frame preview:", err);
-          })
-          .finally(() => {
-            setCompressingPreview(false);
-          });
       } else {
         const img = new window.Image();
         img.onload = () => {
@@ -589,7 +566,7 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
             <input
               ref={ref}
               type="file"
-              accept={slot === "master" ? "image/*,video/*" : "image/*"}
+              accept="image/*,video/*"
               className="hidden"
               onChange={(e) => selectFile(slot, e.target.files?.[0] ?? undefined)}
             />
