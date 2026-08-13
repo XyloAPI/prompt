@@ -9,7 +9,14 @@ if (fs.existsSync(srcDir)) {
   console.log('Copied @libsql to standalone node_modules.');
 }
 
-// 2. Recursively find and patch all .nft.json files
+// 2. Patch require-hook.js — Module.prototype is undefined in workerd, causing crash
+const requireHookPath = path.join(__dirname, '../.next/standalone/node_modules/next/dist/server/require-hook.js');
+if (fs.existsSync(requireHookPath)) {
+  fs.writeFileSync(requireHookPath, "'use strict';\n// Stubbed for Cloudflare Workers (workerd) compatibility\nmodule.exports = function hookRequire() {};\n");
+  console.log('Patched require-hook.js');
+}
+
+// 3. Recursively find and patch all .nft.json files
 function walkDir(dir, callback) {
   try {
     if (!fs.existsSync(dir)) return;
