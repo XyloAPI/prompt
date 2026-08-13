@@ -1,4 +1,3 @@
-import { getR2BucketByName, getR2Accounts } from "@/db/queries";
 import { AwsClient } from "aws4fetch";
 import type { R2Account, R2Bucket } from "@/db/schema";
 
@@ -18,13 +17,46 @@ export async function resolveBucket(bucketName: string): Promise<{ bucket: R2Buc
     return { bucket: cached.bucket, account: cached.account };
   }
 
+  // Try Cloudflare Edge Cache for the bucket config
+  const cacheKeyUrl = `https://cache.local/resolve-bucket/${encodeURIComponent(bucketName)}`;
+  if (cacheApi) {
+    try {
+      const cachedResponse = await cacheApi.default.match(cacheKeyUrl);
+      if (cachedResponse) {
+        const data = await cachedResponse.json() as { bucket: R2Bucket | null; account: R2Account | null };
+        bucketCache.set(bucketName, { bucket: data.bucket, account: data.account, at: Date.now() });
+        return data;
+      }
+    } catch (e) {
+      console.error("Failed to read bucket cache:", e);
+    }
+  }
+
+  // Cache miss - dynamically import query module to avoid loading Drizzle on cache hit
+  const { getR2BucketByName, getR2Accounts } = await import("@/db/queries");
   const bucket = await getR2BucketByName(bucketName);
   const account = bucket
     ? ((await getR2Accounts()).find((a) => a.id === bucket.accountId) ?? null)
     : null;
 
+  const data = { bucket, account };
   bucketCache.set(bucketName, { bucket, account, at: Date.now() });
-  return { bucket, account };
+
+  if (cacheApi) {
+    try {
+      const resp = new Response(JSON.stringify(data), {
+        headers: {
+          "content-type": "application/json",
+          "cache-control": "public, max-age=3600",
+        },
+      });
+      await cacheApi.default.put(cacheKeyUrl, resp);
+    } catch (e) {
+      console.error("Failed to write bucket cache:", e);
+    }
+  }
+
+  return data;
 }
 
 type CachesLike = {
@@ -109,22 +141,21 @@ export async function serveR2Object(request: Request, bucketName: string, parts:
     }
 
     const declared = upstream.headers.get("content-length");
-    if (declared && Number(declared) > BUFFER_CAP) {
-      return new Response(upstream.body, { status: 200, headers: outHeaders });
+    if (declared) {
+      outHeaders.set("content-length", declared);
     }
 
-    const buf = await upstream.arrayBuffer();
-    outHeaders.set("content-length", String(buf.byteLength));
+    const size = declared ? Number(declared) : 0;
+    const shouldCache = !range && size > 0 && size <= BUFFER_CAP && cacheApi;
 
-    if (buf.byteLength <= BUFFER_CAP && cacheApi) {
-      const resp = new Response(buf, { status: 200, headers: outHeaders });
+    const resp = new Response(upstream.body, { status: 200, headers: outHeaders });
+    if (shouldCache) {
       try {
         await cacheApi.default.put(cacheKey(request.url), resp.clone());
       } catch {}
-      return resp;
     }
 
-    return new Response(buf, { status: 200, headers: outHeaders });
+    return resp;
   } catch (err) {
     console.error("R2 proxy failed:", err);
     return new Response("Internal Server Error", { status: 500 });

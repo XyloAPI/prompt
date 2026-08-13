@@ -40,10 +40,7 @@ export async function middleware(request: NextRequest) {
         decodeURIComponent(clean.slice(0, uploadsIdx).split("/").pop() ?? ""),
         rest.map((p) => decodeURIComponent(p))
       );
-      return new NextResponse(response.body, {
-        status: response.status,
-        headers: response.headers,
-      });
+      return response;
     }
   }
 
