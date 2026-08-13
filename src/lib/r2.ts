@@ -8,6 +8,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { R2Account } from "@/db/schema";
+import { AwsClient } from "aws4fetch";
 
 function getClient(account: R2Account): S3Client {
   return new S3Client({
@@ -33,15 +34,29 @@ export async function createPresignedUploadUrl(opts: {
   contentType: string;
   expiresIn?: number;
 }): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: opts.bucketName,
-    Key: opts.key,
-    ContentType: opts.contentType,
+  const client = new AwsClient({
+    accessKeyId: opts.account.accessKeyId,
+    secretAccessKey: opts.account.secretAccessKey,
+    service: "s3",
+    region: "auto",
   });
-  return getSignedUrl(getClient(opts.account), command, {
-    expiresIn: opts.expiresIn ?? 900,
-    signableHeaders: new Set(["content-type"]),
-  });
+
+  const url = `https://${opts.account.accountId}.r2.cloudflarestorage.com/${opts.bucketName}/${opts.key}?X-Amz-Expires=${opts.expiresIn ?? 900}`;
+  const signed = await client.sign(
+    new Request(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": opts.contentType,
+      },
+    }),
+    {
+      aws: {
+        signQuery: true,
+      },
+    }
+  );
+
+  return signed.url;
 }
 
 export async function createPresignedDownloadUrl(opts: {
@@ -50,13 +65,26 @@ export async function createPresignedDownloadUrl(opts: {
   key: string;
   expiresIn?: number;
 }): Promise<string> {
-  const command = new GetObjectCommand({
-    Bucket: opts.bucketName,
-    Key: opts.key,
+  const client = new AwsClient({
+    accessKeyId: opts.account.accessKeyId,
+    secretAccessKey: opts.account.secretAccessKey,
+    service: "s3",
+    region: "auto",
   });
-  return getSignedUrl(getClient(opts.account), command, {
-    expiresIn: opts.expiresIn ?? 3600,
-  });
+
+  const url = `https://${opts.account.accountId}.r2.cloudflarestorage.com/${opts.bucketName}/${opts.key}?X-Amz-Expires=${opts.expiresIn ?? 3600}`;
+  const signed = await client.sign(
+    new Request(url, {
+      method: "GET",
+    }),
+    {
+      aws: {
+        signQuery: true,
+      },
+    }
+  );
+
+  return signed.url;
 }
 
 export async function getObjectBuffer(opts: {
