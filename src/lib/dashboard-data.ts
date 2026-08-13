@@ -1,5 +1,4 @@
 import { listImages } from "@/lib/data";
-import { getR2Buckets } from "@/db/queries";
 import type { Category } from "@/db/schema";
 
 const categoryLabels: Record<Category, string> = {
@@ -14,19 +13,13 @@ export type DashboardData = {
     images: number;
     downloads: number;
     storageBytes: number;
-    buckets: number;
     dailyPicks: number;
   };
   uploadsByDay: { date: string; count: number }[];
   byCategory: { name: string; value: number }[];
   topTags: { name: string; value: number }[];
   topDownloaded: { name: string; value: number }[];
-  bucketUsage: {
-    name: string;
-    usedBytes: number;
-    quotaBytes: number;
-    pct: number;
-  }[];
+  bucketUsage: [];
   trending: { title: string; value: number }[];
 };
 
@@ -41,13 +34,12 @@ function lastNDays(n: number): string[] {
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const [images, buckets] = await Promise.all([listImages(), getR2Buckets()]);
+  const images = await listImages();
 
   const stats = {
     images: images.length,
     downloads: images.reduce((s, i) => s + (i.downloads ?? 0), 0),
     storageBytes: images.reduce((s, i) => s + (i.sizeBytes ?? 0), 0),
-    buckets: buckets.length,
     dailyPicks: images.filter((i) => i.isDailyPick).length,
   };
 
@@ -88,25 +80,13 @@ export async function getDashboardData(): Promise<DashboardData> {
     .slice(0, 8)
     .map((img) => ({ name: img.title, value: img.downloads ?? 0 }));
 
-  // Bucket usage
-  const bucketUsage = buckets.map((b) => {
-    const used = b.usedBytes ?? 0;
-    const quota = b.quotaBytes ?? 0;
-    return {
-      name: b.name,
-      usedBytes: used,
-      quotaBytes: quota,
-      pct: quota ? Math.min(100, (used / quota) * 100) : 0,
-    };
-  });
-
   // Trending
   const trending = [...images]
     .sort((a, b) => (b.trending ?? 0) - (a.trending ?? 0))
     .slice(0, 8)
     .map((img) => ({ title: img.title, value: img.trending ?? 0 }));
 
-  return { stats, uploadsByDay, byCategory, topTags, topDownloaded, bucketUsage, trending };
+  return { stats, uploadsByDay, byCategory, topTags, topDownloaded, bucketUsage: [], trending };
 }
 
 export function formatBytes(bytes: number): string {

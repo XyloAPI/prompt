@@ -5,13 +5,11 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  createUploadAction,
   generateMetadataAction,
   generateMetadataFromFileAction,
   saveImageAction,
 } from "@/app/admin/actions";
 import { ALL_VISION_MODELS, DEFAULT_GEMINI_MODEL } from "@/lib/ai-assistant";
-import { compressImage } from "@/lib/compressor";
 import type { PaletteColor } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { RippleButton, RippleButtonRipples } from "@/components/animate-ui/components/buttons/ripple";
@@ -20,16 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormSelect } from "@/components/admin/form-select";
 import { ColorPalette } from "@/components/color-palette";
-import { Sparkle, CircleNotch, UploadSimple, ImageSquare, Lightning } from "@phosphor-icons/react";
+import { Sparkle, CircleNotch, UploadSimple, ImageSquare, LinkSimple, Info, CloudArrowUp, CheckCircle } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-
-type UploadedFile = {
-  key: string;
-  previewKey: string;
-  bucketId: string;
-  bucketName: string;
-  sizeBytes: number;
-};
+import { compressImage } from "@/lib/compressor";
 
 type Metadata = {
   title: string;
@@ -40,25 +31,29 @@ type Metadata = {
 };
 
 export function UploadForm({
-  bucketOptions,
   model,
   onSuccess,
 }: {
-  bucketOptions: { value: string; label: string }[];
   model?: string;
   onSuccess?: () => void;
 }) {
   const router = useRouter();
+
+  // Local files for dimensions and instant client previews
   const [masterFile, setMasterFile] = React.useState<File | null>(null);
-  const [previewFile, setPreviewFile] = React.useState<File | null>(null);
   const [masterPreviewUrl, setMasterPreviewUrl] = React.useState<string | null>(null);
-  const [previewPreviewUrl, setPreviewPreviewUrl] = React.useState<string | null>(null);
   const [masterDimensions, setMasterDimensions] = React.useState<{ width: number; height: number } | null>(null);
+
+  const [previewFile, setPreviewFile] = React.useState<File | null>(null);
+  const [previewPreviewUrl, setPreviewPreviewUrl] = React.useState<string | null>(null);
+
+  const [uploadingMaster, setUploadingMaster] = React.useState(false);
+  const [uploadingPreview, setUploadingPreview] = React.useState(false);
   const [dragging, setDragging] = React.useState<"master" | "preview" | null>(null);
-  const [compressingPreview, setCompressingPreview] = React.useState(false);
-  const [isAutoCompressed, setIsAutoCompressed] = React.useState(false);
-  
-  const [uploaded, setUploaded] = React.useState<UploadedFile | null>(null);
+
+  // Field values
+  const [masterUrl, setMasterUrl] = React.useState("");
+  const [previewUrl, setPreviewUrl] = React.useState("");
   const [category, setCategory] = React.useState<string>("photo");
   const [metadata, setMetadata] = React.useState<Metadata>({
     title: "",
@@ -70,106 +65,26 @@ export function UploadForm({
 
   const [generating, setGenerating] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
-  const [bucketId, setBucketId] = React.useState<string>(bucketOptions[0]?.value ?? "");
-  const [aiModel, setAiModel] = React.useState<string>(
-    model ?? DEFAULT_GEMINI_MODEL
-  );
+  const [aiModel, setAiModel] = React.useState<string>(model ?? DEFAULT_GEMINI_MODEL);
 
   const MODEL_OPTIONS = ALL_VISION_MODELS;
-
-  const isMasterVideo = Boolean(
-    (masterFile && (masterFile.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(masterFile.name))) ||
-    category === "video"
-  );
-
   const masterInputRef = React.useRef<HTMLInputElement>(null);
   const previewInputRef = React.useRef<HTMLInputElement>(null);
 
-  async function extractVideoFrame(file: File): Promise<Blob | null> {
-    return new Promise((resolve) => {
-      const video = document.createElement("video");
-      const url = URL.createObjectURL(file);
-      video.src = url;
-      video.crossOrigin = "anonymous";
-      video.muted = true;
-      video.playsInline = true;
-      video.preload = "auto";
-
-      let resolved = false;
-      const capture = () => {
-        if (resolved) return;
-        try {
-          const canvas = document.createElement("canvas");
-          canvas.width = video.videoWidth || 1280;
-          canvas.height = video.videoHeight || 720;
-          const ctx = canvas.getContext("2d");
-          if (ctx && canvas.width > 0 && canvas.height > 0) {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            canvas.toBlob(
-              (blob) => {
-                if (!resolved) {
-                  resolved = true;
-                  URL.revokeObjectURL(url);
-                  resolve(blob);
-                }
-              },
-              "image/jpeg",
-              0.85
-            );
-            return;
-          }
-        } catch {}
-        if (!resolved) {
-          resolved = true;
-          URL.revokeObjectURL(url);
-          resolve(null);
-        }
-      };
-
-      video.onloadedmetadata = () => {
-        video.currentTime = Math.min(1.0, (video.duration || 2) / 2);
-      };
-
-      video.onseeked = () => {
-        capture();
-      };
-
-      video.onerror = () => {
-        if (!resolved) {
-          resolved = true;
-          URL.revokeObjectURL(url);
-          resolve(null);
-        }
-      };
-
-      setTimeout(() => {
-        if (!resolved) capture();
-      }, 4000);
-    });
-  }
-
-  async function selectFile(slot: "master" | "preview", file: File | undefined) {
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const isVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name);
-
-    if (slot === "master") {
-      setMasterFile(file);
+  // Sync Master File properties (Dimensions & Category)
+  React.useEffect(() => {
+    if (masterFile) {
+      const url = URL.createObjectURL(masterFile);
       setMasterPreviewUrl(url);
 
+      const isVideo = masterFile.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(masterFile.name);
       if (isVideo) {
         setCategory("video");
-        setPreviewFile(null);
-        setPreviewPreviewUrl(null);
-        setIsAutoCompressed(false);
-        setCompressingPreview(false);
-
         const video = document.createElement("video");
         video.src = url;
         video.crossOrigin = "anonymous";
         video.muted = true;
         video.playsInline = true;
-
         video.onloadedmetadata = () => {
           if (video.videoWidth > 0 && video.videoHeight > 0) {
             setMasterDimensions({ width: video.videoWidth, height: video.videoHeight });
@@ -183,55 +98,190 @@ export function UploadForm({
           }
         };
         img.src = url;
+      }
 
-        // Automatically generate compressed preview from Master using compressorjs
-        setCompressingPreview(true);
-        try {
-          const compressed = await compressImage(file, {
-            quality: 0.82,
-            maxWidth: 1920,
-            maxHeight: 1920,
-            mimeType: "image/jpeg",
-          });
-          const compressedUrl = URL.createObjectURL(compressed);
-          setPreviewFile(compressed);
-          setPreviewPreviewUrl(compressedUrl);
-          setIsAutoCompressed(true);
-        } catch (err) {
-          console.error("Auto compression failed:", err);
-        } finally {
-          setCompressingPreview(false);
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    } else {
+      setMasterPreviewUrl(null);
+      setMasterDimensions(null);
+    }
+  }, [masterFile]);
+
+  React.useEffect(() => {
+    if (previewFile) {
+      const url = URL.createObjectURL(previewFile);
+      setPreviewPreviewUrl(url);
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    } else {
+      setPreviewPreviewUrl(null);
+    }
+  }, [previewFile]);
+
+  async function selectFile(slot: "master" | "preview", file: File | undefined) {
+    if (!file) return;
+
+    const isVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name);
+    if (slot === "master" && !isVideo) {
+      compressImage(file)
+        .then((compressedFile) => {
+          selectFile("preview", compressedFile);
+        })
+        .catch((err) => {
+          console.error("Auto-compression failed:", err);
+        });
+    }
+
+    if (slot === "master") {
+      setUploadingMaster(true);
+      setMasterFile(file);
+    } else {
+      setUploadingPreview(true);
+      setPreviewFile(file);
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Upload failed with status ${response.status}`);
+      }
+
+      const res = await response.json();
+
+      if (res.error) {
+        toast.error(res.error);
+        if (slot === "master") setMasterFile(null);
+        else setPreviewFile(null);
+        return;
+      }
+
+      if (res.url) {
+        toast.success(`Uploaded ${file.name} to Storage!`);
+        if (slot === "master") {
+          setMasterUrl(res.url);
+        } else {
+          setPreviewUrl(res.url);
         }
       }
-    } else {
-      setPreviewFile(file);
-      setPreviewPreviewUrl(url);
-      setIsAutoCompressed(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed.");
+      if (slot === "master") setMasterFile(null);
+      else setPreviewFile(null);
+    } finally {
+      if (slot === "master") setUploadingMaster(false);
+      else setUploadingPreview(false);
     }
   }
 
-async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ base64: string; mimeType: string }> {
-  const isVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name);
+  async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ base64: string; mimeType: string }> {
+    const isVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name);
 
-  if (isVideo) {
+    if (isVideo) {
+      return new Promise((resolve, reject) => {
+        const video = document.createElement("video");
+        const url = URL.createObjectURL(file);
+        video.src = url;
+        video.preload = "auto";
+        video.muted = true;
+        video.playsInline = true;
+        video.crossOrigin = "anonymous";
+
+        const timeout = setTimeout(() => {
+          URL.revokeObjectURL(url);
+          reject(new Error("Video extraction timed out."));
+        }, 15000);
+
+        const tryCapture = (attempt = 0) => {
+          try {
+            let width = video.videoWidth || 1280;
+            let height = video.videoHeight || 720;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+
+            const canvas = document.createElement("canvas");
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext("2d", { willReadFrequently: true });
+            if (!ctx) throw new Error("Canvas context failed");
+
+            ctx.drawImage(video, 0, 0, width, height);
+
+            const sampleW = Math.min(width, 40);
+            const sampleH = Math.min(height, 40);
+            const imgData = ctx.getImageData(0, 0, sampleW, sampleH).data;
+            let sum = 0;
+            for (let i = 0; i < imgData.length; i += 4) {
+              sum += imgData[i] + imgData[i + 1] + imgData[i + 2];
+            }
+            const avgBrightness = sum / (sampleW * sampleH * 3);
+
+            const seekPoints = [0.25, 0.5, 0.75, 0.9];
+            if (avgBrightness < 6 && attempt < seekPoints.length && video.duration > 0.5) {
+              video.currentTime = Math.min(video.duration - 0.1, video.duration * seekPoints[attempt]);
+              return;
+            }
+
+            const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+            clearTimeout(timeout);
+            URL.revokeObjectURL(url);
+            resolve({ base64: dataUrl.split(",")[1], mimeType: "image/jpeg" });
+          } catch (e) {
+            clearTimeout(timeout);
+            URL.revokeObjectURL(url);
+            reject(e);
+          }
+        };
+
+        video.onloadedmetadata = () => {
+          const initSeek = video.duration > 1 ? Math.min(1.5, video.duration * 0.25) : 0.1;
+          video.currentTime = initSeek;
+        };
+
+        let attemptCount = 0;
+        video.onseeked = () => {
+          attemptCount++;
+          video.play().then(() => {
+            setTimeout(() => {
+              video.pause();
+              tryCapture(attemptCount);
+            }, 100);
+          }).catch(() => {
+            tryCapture(attemptCount);
+          });
+        };
+
+        video.onerror = () => {
+          clearTimeout(timeout);
+          URL.revokeObjectURL(url);
+          reject(new Error("Video playback error during frame extraction"));
+        };
+      });
+    }
+
     return new Promise((resolve, reject) => {
-      const video = document.createElement("video");
-      const url = URL.createObjectURL(file);
-      video.src = url;
-      video.preload = "auto";
-      video.muted = true;
-      video.playsInline = true;
-      video.crossOrigin = "anonymous";
-
-      const timeout = setTimeout(() => {
-        URL.revokeObjectURL(url);
-        reject(new Error("Video extraction timed out."));
-      }, 15000);
-
-      const tryCapture = (attempt = 0) => {
-        try {
-          let width = video.videoWidth || 1280;
-          let height = video.videoHeight || 720;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new window.Image();
+        img.onload = () => {
+          let { width, height } = img;
           if (width > maxDim || height > maxDim) {
             if (width > height) {
               height = Math.round((height * maxDim) / width);
@@ -241,124 +291,47 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
               height = maxDim;
             }
           }
-
           const canvas = document.createElement("canvas");
           canvas.width = width;
           canvas.height = height;
-          const ctx = canvas.getContext("2d", { willReadFrequently: true });
-          if (!ctx) throw new Error("Canvas context failed");
-
-          ctx.drawImage(video, 0, 0, width, height);
-
-          // Check brightness of sampled frame
-          const sampleW = Math.min(width, 40);
-          const sampleH = Math.min(height, 40);
-          const imgData = ctx.getImageData(0, 0, sampleW, sampleH).data;
-          let sum = 0;
-          for (let i = 0; i < imgData.length; i += 4) {
-            sum += imgData[i] + imgData[i + 1] + imgData[i + 2];
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            const raw = (e.target?.result as string).split(",")[1];
+            return resolve({ base64: raw, mimeType: file.type || "image/jpeg" });
           }
-          const avgBrightness = sum / (sampleW * sampleH * 3);
-
-          // If frame is completely black and we have more seek points, try later timestamp
-          const seekPoints = [0.25, 0.5, 0.75, 0.9];
-          if (avgBrightness < 6 && attempt < seekPoints.length && video.duration > 0.5) {
-            video.currentTime = Math.min(video.duration - 0.1, video.duration * seekPoints[attempt]);
-            return;
-          }
-
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-          clearTimeout(timeout);
-          URL.revokeObjectURL(url);
-          resolve({ base64: dataUrl.split(",")[1], mimeType: "image/jpeg" });
-        } catch (e) {
-          clearTimeout(timeout);
-          URL.revokeObjectURL(url);
-          reject(e);
-        }
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          const base64 = dataUrl.split(",")[1];
+          resolve({ base64: base64, mimeType: "image/jpeg" });
+        };
+        img.onerror = () => {
+          const raw = (e.target?.result as string).split(",")[1];
+          resolve({ base64: raw, mimeType: file.type || "image/jpeg" });
+        };
+        img.src = e.target?.result as string;
       };
-
-      video.onloadedmetadata = () => {
-        const initSeek = video.duration > 1 ? Math.min(1.5, video.duration * 0.25) : 0.1;
-        video.currentTime = initSeek;
-      };
-
-      let attemptCount = 0;
-      video.onseeked = () => {
-        attemptCount++;
-        // Play briefly to ensure browser hardware decoder renders the frame
-        video.play().then(() => {
-          setTimeout(() => {
-            video.pause();
-            tryCapture(attemptCount);
-          }, 100);
-        }).catch(() => {
-          tryCapture(attemptCount);
-        });
-      };
-
-      video.onerror = () => {
-        clearTimeout(timeout);
-        URL.revokeObjectURL(url);
-        reject(new Error("Video playback error during frame extraction"));
-      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
   }
 
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const img = new window.Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          const raw = (e.target?.result as string).split(",")[1];
-          return resolve({ base64: raw, mimeType: file.type || "image/jpeg" });
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-        const base64 = dataUrl.split(",")[1];
-        resolve({ base64: base64, mimeType: "image/jpeg" });
-      };
-      img.onerror = () => {
-        const raw = (e.target?.result as string).split(",")[1];
-        resolve({ base64: raw, mimeType: file.type || "image/jpeg" });
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
   async function handleGenerate() {
-    const targetFile = isMasterVideo ? masterFile : (previewFile || masterFile);
-    if (!targetFile) {
-      toast.error("Please select an asset first to generate metadata.");
+    if (!masterFile && !masterUrl.trim()) {
+      toast.error("Please select a file or paste a Master URL first to generate metadata.");
       return;
     }
 
-    const hint = targetFile.name.replace(/\.[^/.]+$/, "");
+    const hint = masterFile
+      ? masterFile.name.replace(/\.[^/.]+$/, "")
+      : masterUrl.split("/").pop()?.split("?")[0].replace(/\.[^/.]+$/, "") ?? "";
 
     setGenerating(true);
     try {
-      if (uploaded) {
-        const res = await generateMetadataAction({
-          key: uploaded.previewKey || uploaded.key,
-          bucketId: uploaded.bucketId,
+      if (masterFile) {
+        const { base64, mimeType } = await getOptimizedAiImageBase64(masterFile);
+        const res = await generateMetadataFromFileAction({
+          base64,
+          mimeType,
           model: aiModel,
           hint,
         });
@@ -368,16 +341,11 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
         }
         applyGeneratedMetadata(res);
       } else {
-        // Optimize local image or extract frame before sending base64 to AI
-        const { base64, mimeType } = await getOptimizedAiImageBase64(targetFile);
-
-        const res = await generateMetadataFromFileAction({
-          base64,
-          mimeType,
+        const res = await generateMetadataAction({
+          url: masterUrl.trim(),
           model: aiModel,
           hint,
         });
-
         if (res.error) {
           toast.error(res.error);
           return;
@@ -402,93 +370,27 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
     }));
   }
 
-  async function uploadFilesToR2(): Promise<UploadedFile | null> {
-    if (!masterFile) return null;
-    const bucket = bucketOptions.find((b) => b.value === bucketId);
-    if (!bucket) throw new Error("No bucket selected.");
-
-    const res = await createUploadAction({
-      bucketId,
-      master: {
-        fileName: masterFile.name,
-        contentType: masterFile.type || (isMasterVideo ? "video/mp4" : "image/jpeg"),
-        size: masterFile.size,
-      },
-      preview: previewFile && !isMasterVideo ? {
-        fileName: previewFile.name,
-        contentType: previewFile.type || "image/jpeg",
-        size: previewFile.size,
-      } : undefined,
-    });
-
-    if ("error" in res) throw new Error(res.error);
-
-    const uploads = [
-      fetch(res.url, {
-        method: "PUT",
-        headers: { "Content-Type": masterFile.type || (isMasterVideo ? "video/mp4" : "image/jpeg") },
-        body: masterFile,
-      }),
-    ];
-
-    if (res.previewUrl && previewFile && !isMasterVideo) {
-      uploads.push(
-        fetch(res.previewUrl, {
-          method: "PUT",
-          headers: { "Content-Type": previewFile.type || "image/jpeg" },
-          body: previewFile,
-        })
-      );
-    }
-
-    const responses = await Promise.all(uploads);
-    for (const r of responses) {
-      if (!r.ok) throw new Error(`R2 upload failed: ${r.statusText}`);
-    }
-
-    const uploadedInfo: UploadedFile = {
-      key: res.key,
-      previewKey: res.previewKey || "",
-      bucketId: res.bucketId,
-      bucketName: res.bucketName,
-      sizeBytes: masterFile.size + (res.previewUrl && previewFile ? previewFile.size : 0),
-    };
-    setUploaded(uploadedInfo);
-    return uploadedInfo;
-  }
-
-  async function handleSaveAndUpload() {
+  async function handleSave() {
     if (!metadata.title.trim()) {
       toast.error("Please enter a title.");
       return;
     }
-    if (!uploaded && (!masterFile || (!isMasterVideo && !previewFile))) {
-      toast.error(isMasterVideo ? "Please select a video file." : "Please select both master and preview images.");
+    if (!masterUrl.trim()) {
+      toast.error("Please enter or upload a Master URL.");
       return;
     }
 
     setSaving(true);
     try {
-      let fileInfo = uploaded;
-      if (!fileInfo) {
-        toast.info(isMasterVideo ? "Uploading video to Cloudflare R2…" : "Uploading images to Cloudflare R2…");
-        fileInfo = await uploadFilesToR2();
-      }
-
-      if (!fileInfo) {
-        toast.error("Upload failed.");
-        return;
-      }
-
       const form = new FormData();
-      form.set("r2Key", fileInfo.key);
-      form.set("previewKey", fileInfo.previewKey);
-      form.set("bucketId", fileInfo.bucketId);
-      form.set("sizeBytes", String(fileInfo.sizeBytes));
-      if (masterDimensions?.width && masterDimensions?.height) {
-        form.set("width", String(masterDimensions.width));
-        form.set("height", String(masterDimensions.height));
-      }
+      form.set("url", masterUrl.trim());
+      form.set("thumbnailUrl", previewUrl.trim() || masterUrl.trim());
+
+      const width = masterDimensions?.width ?? 1200;
+      const height = masterDimensions?.height ?? 800;
+      form.set("width", String(width));
+      form.set("height", String(height));
+
       form.set("category", category);
       form.set("title", metadata.title.trim());
       form.set("description", metadata.description.trim());
@@ -502,7 +404,7 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
         return;
       }
 
-      toast.success("Image successfully added to library!");
+      toast.success("Asset successfully added to library!");
       if (onSuccess) {
         onSuccess();
       } else {
@@ -510,40 +412,46 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
       }
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save image.");
+      toast.error(err instanceof Error ? err.message : "Failed to save asset.");
     } finally {
       setSaving(false);
     }
   }
 
+  const isVideo = category === "video" || (masterFile && (masterFile.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(masterFile.name)));
+
   return (
     <div className="space-y-6">
-      {/* Top Section: File Dropzones */}
+      {/* Storage Slots */}
       <div className="grid gap-3 sm:grid-cols-2">
         {[
           {
             slot: "master" as const,
-            label: isMasterVideo ? "Master Video Asset" : "Master Image",
-            sub: isMasterVideo ? "Full-res original (MP4, WebM, MOV)" : "Full-size original asset",
+            label: isVideo ? "Master Video Asset" : "Master Asset",
+            sub: "Upload to Storage",
             ref: masterInputRef,
             file: masterFile,
             url: masterPreviewUrl,
+            loading: uploadingMaster,
+            value: masterUrl,
           },
           {
             slot: "preview" as const,
-            label: "Preview Image",
-            sub: "Lightweight compressed preview",
+            label: "Preview Asset",
+            sub: "Upload preview to Storage",
             ref: previewInputRef,
             file: previewFile,
             url: previewPreviewUrl,
+            loading: uploadingPreview,
+            value: previewUrl,
           },
-        ].map(({ slot, label, sub, ref, file, url }) => (
+        ].map(({ slot, label, sub, ref, file, url, loading, value }) => (
           <div
             key={slot}
             role="button"
             tabIndex={0}
-            onClick={() => ref.current?.click()}
-            onKeyDown={(e) => e.key === "Enter" && ref.current?.click()}
+            onClick={() => !loading && ref.current?.click()}
+            onKeyDown={(e) => e.key === "Enter" && !loading && ref.current?.click()}
             onDragOver={(e) => {
               e.preventDefault();
               setDragging(slot);
@@ -552,7 +460,9 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
             onDrop={(e) => {
               e.preventDefault();
               setDragging(null);
-              selectFile(slot, e.dataTransfer.files?.[0]);
+              if (e.dataTransfer.files?.[0]) {
+                selectFile(slot, e.dataTransfer.files[0]);
+              }
             }}
             className={cn(
               "group relative flex min-h-[140px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed p-4 text-center transition-all",
@@ -568,50 +478,47 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
               type="file"
               accept="image/*,video/*"
               className="hidden"
-              onChange={(e) => selectFile(slot, e.target.files?.[0] ?? undefined)}
+              onChange={(e) => {
+                if (e.target.files?.[0]) {
+                  selectFile(slot, e.target.files[0]);
+                }
+              }}
             />
 
-            {slot === "preview" && compressingPreview ? (
+            {loading ? (
               <div className="flex flex-col items-center gap-2 py-4">
                 <CircleNotch className="size-6 animate-spin text-primary" />
-                <p className="text-xs font-semibold text-foreground">Generating preview…</p>
-                <p className="text-[11px] text-muted-foreground">Optimizing from master asset</p>
+                <p className="text-xs font-semibold text-foreground">Uploading to Storage…</p>
               </div>
             ) : file && url ? (
               <div className="flex w-full items-center gap-3">
                 <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-background">
-                  {file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name) ? (
+                  {file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name) || /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(url) ? (
                     <video src={url} className="size-full object-cover" muted playsInline />
                   ) : (
                     <Image src={url} alt={label} fill className="object-cover" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1 text-left">
-                  <div className="flex items-center gap-1.5">
-                    <p className="truncate text-xs font-semibold text-foreground">{file.name}</p>
-                    {slot === "preview" && isAutoCompressed && (
-                      <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-medium text-emerald-500">
-                        <Lightning className="size-2.5" weight="fill" /> Auto
-                      </span>
-                    )}
-                  </div>
+                  <p className="truncate text-xs font-semibold text-foreground">{file.name}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {formatBytes(file.size)}
-                    {slot === "master" && masterDimensions ? ` · ${masterDimensions.width}×${masterDimensions.height}` : ""}
-                    {slot === "preview" && masterFile && masterFile.size > file.size && (
-                      <span className="text-emerald-500 font-medium ml-1">
-                        (-{Math.round(((masterFile.size - file.size) / masterFile.size) * 100)}%)
+                    {slot === "master" && masterDimensions ? `${masterDimensions.width}×${masterDimensions.height} · ` : ""}
+                    {value ? (
+                      <span className="text-emerald-500 font-medium flex items-center gap-1 mt-0.5">
+                        <CheckCircle className="size-3.5 fill-emerald-500" /> Uploaded
                       </span>
+                    ) : (
+                      "Waiting for URL..."
                     )}
                   </p>
                   <span className="mt-1 inline-block text-[10px] text-primary underline underline-offset-2">
-                    Click to replace
+                    Click to replace file
                   </span>
                 </div>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-1.5">
-                <ImageSquare className="size-6 text-muted-foreground/60 transition-transform group-hover:scale-110" />
+                <CloudArrowUp className="size-6 text-muted-foreground/60 transition-transform group-hover:scale-110" />
                 <p className="text-xs font-semibold text-foreground">{label}</p>
                 <p className="text-[11px] text-muted-foreground">{sub}</p>
               </div>
@@ -620,17 +527,35 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
         ))}
       </div>
 
-      {/* Target Bucket Selector */}
-      <Field>
-        <FieldLabel className="text-xs">Storage Bucket</FieldLabel>
-        <FormSelect
-          name="bucket"
-          defaultValue={bucketId}
-          items={bucketOptions}
-          onValueChange={setBucketId}
-          className="h-9 text-xs"
-        />
-      </Field>
+      {/* URL Inputs */}
+      <div className="space-y-4 rounded-xl border border-border/50 bg-muted/10 p-4">
+        <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
+          <LinkSimple className="size-4 text-muted-foreground" />
+          <span>Asset Source URLs</span>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel className="text-xs">Master Asset URL</FieldLabel>
+            <Input
+              value={masterUrl}
+              onChange={(e) => setMasterUrl(e.target.value)}
+              placeholder="Auto-populated or paste Storage URL"
+              className="h-9 text-xs"
+              required
+            />
+          </Field>
+          <Field>
+            <FieldLabel className="text-xs">Preview Image URL (Optional)</FieldLabel>
+            <Input
+              value={previewUrl}
+              onChange={(e) => setPreviewUrl(e.target.value)}
+              placeholder="Auto-populated or paste Preview URL"
+              className="h-9 text-xs"
+            />
+          </Field>
+        </div>
+      </div>
 
       {/* AI Assistant Banner */}
       <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
@@ -655,7 +580,7 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
               size="sm"
               variant="outline"
               className="h-8 shrink-0 gap-1.5 rounded-lg px-2.5 text-xs font-medium"
-              disabled={generating || (!masterFile && !previewFile && !uploaded)}
+              disabled={generating || (!masterFile && !masterUrl.trim())}
               onClick={handleGenerate}
             >
               {generating ? (
@@ -674,14 +599,14 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
         </div>
       </div>
 
-      {/* Direct Metadata Fields */}
+      {/* Metadata Fields */}
       <FieldGroup className="gap-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field>
             <FieldLabel className="text-xs">Category</FieldLabel>
             <FormSelect
               name="category"
-              defaultValue={category}
+              value={category}
               items={[
                 { value: "photo", label: "Photo" },
                 { value: "illustration", label: "Illustration" },
@@ -761,21 +686,17 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
       <RippleButton
         type="button"
         className="w-full h-10 gap-2 rounded-xl font-medium shadow-xs"
-        disabled={
-          saving ||
-          (!uploaded && (!masterFile || (!isMasterVideo && !previewFile))) ||
-          !metadata.title.trim()
-        }
-        onClick={handleSaveAndUpload}
+        disabled={saving || uploadingMaster || uploadingPreview || !masterUrl.trim() || !metadata.title.trim()}
+        onClick={handleSave}
       >
         {saving ? (
           <>
             <CircleNotch className="size-4 animate-spin" />
-            <span>Uploading & Saving…</span>
+            <span>Saving to Library…</span>
           </>
         ) : (
           <>
-            <UploadSimple className="size-4" weight="bold" />
+            <Sparkle className="size-4" weight="bold" />
             <span>Save to Library</span>
           </>
         )}
@@ -783,11 +704,4 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
       </RippleButton>
     </div>
   );
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }

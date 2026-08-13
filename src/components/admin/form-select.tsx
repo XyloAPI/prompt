@@ -15,6 +15,7 @@ export function FormSelect({
   name,
   items,
   defaultValue,
+  value: controlledValue,
   placeholder,
   required,
   className,
@@ -24,13 +25,16 @@ export function FormSelect({
   name: string;
   items: { value: string; label: string }[];
   defaultValue?: string;
+  value?: string;
   placeholder?: string;
   required?: boolean;
   className?: string;
   triggerClassName?: string;
   onValueChange?: (value: string) => void;
 }) {
-  const [value, setValue] = React.useState<string>(defaultValue ?? "");
+  const [internalValue, setInternalValue] = React.useState<string>(defaultValue ?? "");
+
+  const value = controlledValue !== undefined ? controlledValue : internalValue;
 
   return (
     <>
@@ -38,7 +42,7 @@ export function FormSelect({
       <Select
         value={value || undefined}
         onValueChange={(v) => {
-          setValue(v);
+          setInternalValue(v);
           onValueChange?.(v);
         }}
         required={required}

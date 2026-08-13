@@ -15,11 +15,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { UploadForm } from "@/components/admin/upload-form";
 
 export function UploadDialog({
-  bucketOptions,
   model,
   triggerVariant = "default",
 }: {
-  bucketOptions: { value: string; label: string }[];
   model?: string;
   triggerVariant?: "default" | "outline" | "secondary";
 }) {
@@ -33,19 +31,18 @@ export function UploadDialog({
           className="gap-2 rounded-full font-medium shadow-xs"
         >
           <PlusCircle className="size-4" weight="bold" />
-          <span>Upload image</span>
+          <span>Upload asset</span>
           <RippleButtonRipples />
         </RippleButton>
       </DialogTrigger>
 
       <DialogContent className="max-h-[90vh] sm:max-w-2xl p-0 flex flex-col overflow-hidden">
         <DialogHeader className="p-6 pb-4 border-b border-border/40 shrink-0">
-          <DialogTitle className="text-xl font-bold tracking-tight">Upload New Image</DialogTitle>
+          <DialogTitle className="text-xl font-bold tracking-tight">Upload New Asset</DialogTitle>
         </DialogHeader>
 
         <ScrollArea className="h-[calc(85vh-90px)] px-6 py-5">
           <UploadForm
-            bucketOptions={bucketOptions}
             model={model}
             onSuccess={() => setOpen(false)}
           />

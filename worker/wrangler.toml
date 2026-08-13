@@ -1,8 +1,0 @@
-name = "luminaq-images"
-main = "src/index.ts"
-compatibility_date = "2026-08-12"
-workers_dev = true
-
-[[r2_buckets]]
-binding = "R2_BUCKET"
-bucket_name = "YOUR_BUCKET_NAME"

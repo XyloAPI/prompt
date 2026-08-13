@@ -1,14 +1,13 @@
 import Link from "next/link";
 import {
   ArrowUpRight,
-  HardDrives,
   ImageSquare,
   PlusCircle,
   TrendUp,
   DownloadSimple,
 } from "@phosphor-icons/react/dist/ssr";
 import { getDashboardData, formatBytes } from "@/lib/dashboard-data";
-import { UploadsChart, CategoryChart, TopTagsChart, TopDownloadsChart, BucketUsageChart } from "@/components/charts/dashboard-charts";
+import { UploadsChart, CategoryChart, TopTagsChart, TopDownloadsChart } from "@/components/charts/dashboard-charts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
@@ -29,9 +28,9 @@ export default async function AdminDashboardPage() {
       icon: DownloadSimple,
     },
     {
-      label: "Storage used",
+      label: "Storage size",
       value: formatBytes(data.stats.storageBytes),
-      icon: HardDrives,
+      icon: ImageSquare,
     },
     {
       label: "Daily picks",
@@ -141,44 +140,6 @@ export default async function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Storage monitor */}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between">
-          <div>
-            <CardTitle>Storage monitoring</CardTitle>
-            <CardDescription>R2 bucket usage vs quota.</CardDescription>
-          </div>
-          <Link href="/admin/r2" className="text-sm font-medium text-muted-foreground underline underline-offset-4 hover:text-foreground">
-            Manage R2
-          </Link>
-        </CardHeader>
-        <CardContent>
-          {data.bucketUsage.length === 0 ? (
-            <EmptyChart label="No R2 buckets configured." />
-          ) : (
-            <div className="space-y-6">
-              <BucketUsageChart data={data.bucketUsage} />
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {data.bucketUsage.map((b) => (
-                  <div key={b.name} className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                    <p className="truncate text-sm font-medium">{b.name}</p>
-                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border">
-                      <div
-                        className={b.pct > 85 ? "h-full rounded-full bg-destructive" : "h-full rounded-full bg-primary"}
-                        style={{ width: `${b.pct}%` }}
-                      />
-                    </div>
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                      {formatBytes(b.usedBytes)} of {formatBytes(b.quotaBytes)} · {b.pct.toFixed(1)}%
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

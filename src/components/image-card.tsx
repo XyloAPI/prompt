@@ -22,15 +22,7 @@ export function ImageCard({
     /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
     /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url);
 
-  const hasSeparatePreview = Boolean(
-    image.thumbnailUrl &&
-    image.thumbnailUrl !== image.url &&
-    image.thumbnailUrl.includes("/preview/")
-  );
-
-  const previewUrl = isVideo
-    ? (hasSeparatePreview ? image.thumbnailUrl : "")
-    : (image.thumbnailUrl || image.url);
+  const previewUrl = image.thumbnailUrl || image.url;
 
   const isThumbnailVideo = /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(previewUrl);
 

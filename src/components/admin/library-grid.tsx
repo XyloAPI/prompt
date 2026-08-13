@@ -185,12 +185,7 @@ export function LibraryGrid({
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
                 {(() => {
                   const isVideo = image.category === "video" || /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url);
-                  const hasSeparatePreview = Boolean(
-                    image.thumbnailUrl &&
-                    image.thumbnailUrl !== image.url &&
-                    image.thumbnailUrl.includes("/preview/")
-                  );
-                  const previewUrl = isVideo ? (hasSeparatePreview ? image.thumbnailUrl : "") : (image.thumbnailUrl || image.url);
+                  const previewUrl = image.thumbnailUrl || image.url;
 
                   if (!previewUrl) {
                     return (

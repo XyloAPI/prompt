@@ -2,13 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChartBar, HardDrives, ImageSquare, GearSix } from "@phosphor-icons/react";
+import { ChartBar, ImageSquare, GearSix } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: ChartBar, exact: true },
   { href: "/admin/library", label: "Library", icon: ImageSquare },
-  { href: "/admin/r2", label: "R2 Storage", icon: HardDrives },
   { href: "/admin/settings", label: "Settings", icon: GearSix },
 ];
 
