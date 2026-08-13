@@ -17,15 +17,14 @@ const routesContent = {
   "exclude": [
     "/_next/static/*",
     "/uploads/*",
-    "/*.svg",
-    "/*.ico",
-    "/*.png",
-    "/*.jpg",
-    "/*.jpeg",
-    "/*.webp",
-    "/*.woff",
-    "/*.woff2",
-    "/*.ttf"
+    "/file.svg",
+    "/globe.svg",
+    "/luminaq.ico",
+    "/luminaq.svg",
+    "/next.svg",
+    "/vercel.svg",
+    "/window.svg",
+    "/favicon.ico"
   ]
 };
 fs.writeFileSync(routesPath, JSON.stringify(routesContent, null, 2));
