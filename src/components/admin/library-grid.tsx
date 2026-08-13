@@ -182,15 +182,20 @@ export function LibraryGrid({
             >
               {/* Thumbnail Container */}
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
-                {image.category === "video" ||
-                /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
-                /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url) ? (
+                {/\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ? (
                   <video
                     src={image.thumbnailUrl || image.url}
-                    autoPlay
                     loop
                     muted
                     playsInline
+                    preload="metadata"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.play().catch(() => {});
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.pause();
+                      e.currentTarget.currentTime = 0;
+                    }}
                     className="size-full object-cover"
                   />
                 ) : (

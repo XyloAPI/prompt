@@ -1,5 +1,9 @@
+"use client";
+
+import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Play } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { Image as ImageType } from "@/db/schema";
@@ -18,31 +22,55 @@ export function ImageCard({
     /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
     /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url);
 
+  const isThumbnailVideo =
+    /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl);
+
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+
   return (
     <Link
       href={isVideo ? `/video/${image.id}` : `/image/${image.id}`}
       className={cn("group relative block overflow-hidden rounded-lg bg-muted", className)}
       style={{ aspectRatio: image.width && image.height ? `${image.width} / ${image.height}` : undefined }}
+      onMouseEnter={() => {
+        if (isThumbnailVideo && videoRef.current) {
+          videoRef.current.play().catch(() => {});
+        }
+      }}
+      onMouseLeave={() => {
+        if (isThumbnailVideo && videoRef.current) {
+          videoRef.current.pause();
+          videoRef.current.currentTime = 0;
+        }
+      }}
     >
-      {isVideo ? (
+      {isThumbnailVideo ? (
         <video
-          src={image.url || image.thumbnailUrl}
-          autoPlay
+          ref={videoRef}
+          src={image.thumbnailUrl || image.url}
           loop
           muted
           playsInline
-          preload="auto"
+          preload="metadata"
           className="size-full object-cover"
         />
       ) : (
         <Image
-          src={image.thumbnailUrl}
+          src={image.thumbnailUrl || image.url}
           alt={image.title}
           fill
           sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
-          className="object-cover"
+          className="object-cover transition-transform duration-300 group-hover:scale-105"
           priority={eager}
         />
+      )}
+
+      {/* Video Indicator Badge */}
+      {isVideo && (
+        <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-white uppercase backdrop-blur-md border border-white/10 shadow-xs">
+          <Play className="size-2.5 fill-white" />
+          <span>Video</span>
+        </div>
       )}
 
       {/* Hover overlay text */}

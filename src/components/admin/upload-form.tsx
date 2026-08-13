@@ -85,6 +85,69 @@ export function UploadForm({
   const masterInputRef = React.useRef<HTMLInputElement>(null);
   const previewInputRef = React.useRef<HTMLInputElement>(null);
 
+  async function extractVideoFrame(file: File): Promise<Blob | null> {
+    return new Promise((resolve) => {
+      const video = document.createElement("video");
+      const url = URL.createObjectURL(file);
+      video.src = url;
+      video.crossOrigin = "anonymous";
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = "auto";
+
+      let resolved = false;
+      const capture = () => {
+        if (resolved) return;
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
+          const ctx = canvas.getContext("2d");
+          if (ctx && canvas.width > 0 && canvas.height > 0) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(
+              (blob) => {
+                if (!resolved) {
+                  resolved = true;
+                  URL.revokeObjectURL(url);
+                  resolve(blob);
+                }
+              },
+              "image/jpeg",
+              0.85
+            );
+            return;
+          }
+        } catch {}
+        if (!resolved) {
+          resolved = true;
+          URL.revokeObjectURL(url);
+          resolve(null);
+        }
+      };
+
+      video.onloadedmetadata = () => {
+        video.currentTime = Math.min(1.0, (video.duration || 2) / 2);
+      };
+
+      video.onseeked = () => {
+        capture();
+      };
+
+      video.onerror = () => {
+        if (!resolved) {
+          resolved = true;
+          URL.revokeObjectURL(url);
+          resolve(null);
+        }
+      };
+
+      setTimeout(() => {
+        if (!resolved) capture();
+      }, 4000);
+    });
+  }
+
   async function selectFile(slot: "master" | "preview", file: File | undefined) {
     if (!file) return;
     const url = URL.createObjectURL(file);
@@ -96,10 +159,7 @@ export function UploadForm({
 
       if (isVideo) {
         setCategory("video");
-        setPreviewFile(null);
-        setPreviewPreviewUrl(null);
-        setIsAutoCompressed(false);
-        setCompressingPreview(false);
+        setCompressingPreview(true);
 
         const video = document.createElement("video");
         video.src = url;
@@ -112,6 +172,32 @@ export function UploadForm({
             setMasterDimensions({ width: video.videoWidth, height: video.videoHeight });
           }
         };
+
+        // Automatically extract a frame as the compressed preview image
+        extractVideoFrame(file)
+          .then(async (blob) => {
+            if (blob) {
+              const frameFile = new File([blob], `${file.name.replace(/\.[^.]+$/, "")}-preview.jpg`, {
+                type: "image/jpeg",
+              });
+              const compressed = await compressImage(frameFile, {
+                quality: 0.82,
+                maxWidth: 1920,
+                maxHeight: 1920,
+                mimeType: "image/jpeg",
+              });
+              const compressedUrl = URL.createObjectURL(compressed);
+              setPreviewFile(compressed);
+              setPreviewPreviewUrl(compressedUrl);
+              setIsAutoCompressed(true);
+            }
+          })
+          .catch((err) => {
+            console.error("Failed to extract video frame preview:", err);
+          })
+          .finally(() => {
+            setCompressingPreview(false);
+          });
       } else {
         const img = new window.Image();
         img.onload = () => {
@@ -456,38 +542,25 @@ async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ b
   return (
     <div className="space-y-6">
       {/* Top Section: File Dropzones */}
-      <div className={cn("grid gap-3", isMasterVideo ? "grid-cols-1" : "sm:grid-cols-2")}>
-        {(
-          isMasterVideo
-            ? [
-                {
-                  slot: "master" as const,
-                  label: "Master Video Asset",
-                  sub: "Original video file (MP4, WebM, MOV)",
-                  ref: masterInputRef,
-                  file: masterFile,
-                  url: masterPreviewUrl,
-                },
-              ]
-            : [
-                {
-                  slot: "master" as const,
-                  label: "Master Image",
-                  sub: "Full-size original asset",
-                  ref: masterInputRef,
-                  file: masterFile,
-                  url: masterPreviewUrl,
-                },
-                {
-                  slot: "preview" as const,
-                  label: "Preview Image",
-                  sub: "Lightweight web display",
-                  ref: previewInputRef,
-                  file: previewFile,
-                  url: previewPreviewUrl,
-                },
-              ]
-        ).map(({ slot, label, sub, ref, file, url }) => (
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[
+          {
+            slot: "master" as const,
+            label: isMasterVideo ? "Master Video Asset" : "Master Image",
+            sub: isMasterVideo ? "Full-res original (MP4, WebM, MOV)" : "Full-size original asset",
+            ref: masterInputRef,
+            file: masterFile,
+            url: masterPreviewUrl,
+          },
+          {
+            slot: "preview" as const,
+            label: "Preview Image",
+            sub: "Lightweight compressed preview",
+            ref: previewInputRef,
+            file: previewFile,
+            url: previewPreviewUrl,
+          },
+        ].map(({ slot, label, sub, ref, file, url }) => (
           <div
             key={slot}
             role="button"

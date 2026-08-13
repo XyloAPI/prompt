@@ -394,7 +394,15 @@ function FileSlot({
     <div className="space-y-2">
       <div className="relative aspect-[16/10] overflow-hidden rounded-xl border border-border/60 bg-muted/30 shadow-xs">
         {isVideo ? (
-          <video src={src} autoPlay loop muted playsInline className="size-full object-cover" />
+          <video
+            src={src}
+            loop
+            muted
+            playsInline
+            preload="metadata"
+            controls
+            className="size-full object-cover"
+          />
         ) : (
           <Image src={src} alt={label} fill className="object-cover" sizes="(min-width: 640px) 280px, 100vw" />
         )}
@@ -408,16 +416,19 @@ function FileSlot({
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept={label.toLowerCase().includes("master") ? "image/*,video/*" : "image/*"}
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0] ?? null;
-            if (f && !f.type.startsWith("image/")) {
-              toast.error("Please choose an image file.");
-              return;
+            if (f) {
+              const isMaster = label.toLowerCase().includes("master");
+              if (!isMaster && !f.type.startsWith("image/")) {
+                toast.error("Please choose an image file for preview.");
+                return;
+              }
+              onSelect(f);
+              e.target.value = "";
             }
-            onSelect(f);
-            e.target.value = "";
           }}
         />
         <Button
@@ -490,24 +501,21 @@ function DeleteImageButton({ id, title }: { id: string; title: string }) {
 }
 
 export function ImageThumb({ image }: { image: ImageType }) {
-  const isVideo =
-    image.category === "video" ||
-    /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
-    /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url);
+  const isThumbnailVideo = /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl);
 
   return (
     <div className={cn("relative aspect-[4/3] overflow-hidden rounded-lg bg-muted")}>
-      {isVideo ? (
+      {isThumbnailVideo ? (
         <video
           src={image.thumbnailUrl || image.url}
-          autoPlay
           loop
           muted
           playsInline
+          preload="metadata"
           className="size-full object-cover"
         />
       ) : (
-        <Image src={image.thumbnailUrl} alt={image.title} fill className="object-cover" sizes="(min-width: 1024px) 200px, 50vw" />
+        <Image src={image.thumbnailUrl || image.url} alt={image.title} fill className="object-cover" sizes="(min-width: 1024px) 200px, 50vw" />
       )}
     </div>
   );
