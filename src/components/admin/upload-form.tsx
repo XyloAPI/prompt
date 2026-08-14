@@ -43,6 +43,7 @@ export function UploadForm({
   const [masterFile, setMasterFile] = React.useState<File | null>(null);
   const [masterPreviewUrl, setMasterPreviewUrl] = React.useState<string | null>(null);
   const [masterDimensions, setMasterDimensions] = React.useState<{ width: number; height: number } | null>(null);
+  const [masterSizeBytes, setMasterSizeBytes] = React.useState<number>(0);
 
   const [previewFile, setPreviewFile] = React.useState<File | null>(null);
   const [previewPreviewUrl, setPreviewPreviewUrl] = React.useState<string | null>(null);
@@ -138,6 +139,7 @@ export function UploadForm({
     if (slot === "master") {
       setUploadingMaster(true);
       setMasterFile(file);
+      setMasterSizeBytes(file.size);
     } else {
       setUploadingPreview(true);
       setPreviewFile(file);
@@ -390,6 +392,7 @@ export function UploadForm({
       const height = masterDimensions?.height ?? 800;
       form.set("width", String(width));
       form.set("height", String(height));
+      form.set("sizeBytes", String(masterSizeBytes));
 
       form.set("category", category);
       form.set("title", metadata.title.trim());

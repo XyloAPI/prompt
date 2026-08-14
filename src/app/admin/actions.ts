@@ -171,6 +171,7 @@ export async function saveImageAction(
   const heightRaw = Number(String(formData.get("height") ?? "0"));
   const width = widthRaw > 0 ? widthRaw : 1200;
   const height = heightRaw > 0 ? heightRaw : 800;
+  const sizeBytes = Number(String(formData.get("sizeBytes") ?? "0"));
 
   await createImage({
     title,
@@ -183,6 +184,7 @@ export async function saveImageAction(
     thumbnailUrl: thumbnailUrl || url,
     width,
     height,
+    sizeBytes,
   });
 
   revalidatePath("/gallery");
