@@ -18,11 +18,19 @@ import {
   GEMINI_MODEL_SETTING,
   NVIDIA_API_KEY_SETTING,
   NVIDIA_MODEL_SETTING,
+  GROQ_API_KEY_SETTING,
+  GROQ_MODEL_SETTING,
+  CLOUDFLARE_ACCOUNT_ID_SETTING,
+  CLOUDFLARE_API_TOKEN_SETTING,
+  CLOUDFLARE_MODEL_SETTING,
+  MISTRAL_API_KEY_SETTING,
+  MISTRAL_MODEL_SETTING,
   getAiSettings,
 } from "@/lib/ai-assistant";
 import { setSetting } from "@/db/queries";
 import type { Category, PaletteColor } from "@/db/schema";
 import { getFileGardenConfig } from "@/lib/filegarden";
+import { getImgCdnConfig } from "@/lib/imgcdn";
 
 export async function loginAction(prev: unknown, formData: FormData): Promise<{ error?: string }> {
   const password = String(formData.get("password") ?? "");
@@ -51,12 +59,26 @@ export async function saveAiSettingsAction(prev: unknown, formData: FormData): P
   const geminiModel = String(formData.get("geminiModel") ?? "").trim();
   const nvidiaApiKey = String(formData.get("nvidiaApiKey") ?? "").trim();
   const nvidiaModel = String(formData.get("nvidiaModel") ?? "").trim();
+  const groqApiKey = String(formData.get("groqApiKey") ?? "").trim();
+  const groqModel = String(formData.get("groqModel") ?? "").trim();
+  const cloudflareAccountId = String(formData.get("cloudflareAccountId") ?? "").trim();
+  const cloudflareApiToken = String(formData.get("cloudflareApiToken") ?? "").trim();
+  const cloudflareModel = String(formData.get("cloudflareModel") ?? "").trim();
+  const mistralApiKey = String(formData.get("mistralApiKey") ?? "").trim();
+  const mistralModel = String(formData.get("mistralModel") ?? "").trim();
 
   await setSetting(AI_PROVIDER_SETTING, provider);
   await setSetting(GEMINI_API_KEY_SETTING, geminiApiKey);
   if (geminiModel) await setSetting(GEMINI_MODEL_SETTING, geminiModel);
   await setSetting(NVIDIA_API_KEY_SETTING, nvidiaApiKey);
   if (nvidiaModel) await setSetting(NVIDIA_MODEL_SETTING, nvidiaModel);
+  await setSetting(GROQ_API_KEY_SETTING, groqApiKey);
+  if (groqModel) await setSetting(GROQ_MODEL_SETTING, groqModel);
+  await setSetting(CLOUDFLARE_ACCOUNT_ID_SETTING, cloudflareAccountId);
+  await setSetting(CLOUDFLARE_API_TOKEN_SETTING, cloudflareApiToken);
+  if (cloudflareModel) await setSetting(CLOUDFLARE_MODEL_SETTING, cloudflareModel);
+  await setSetting(MISTRAL_API_KEY_SETTING, mistralApiKey);
+  if (mistralModel) await setSetting(MISTRAL_MODEL_SETTING, mistralModel);
 
   revalidatePath("/admin/settings");
   revalidatePath("/admin");
@@ -264,6 +286,79 @@ export async function testAiAction(): Promise<{ error?: string; ok?: boolean; me
     } catch (err) {
       return { error: err instanceof Error ? err.message : "NVIDIA NIM request failed." };
     }
+  } else if (settings.provider === "groq") {
+    if (!settings.groqApiKey) return { error: "No Groq API key saved." };
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${settings.groqApiKey}`,
+        },
+        body: JSON.stringify({
+          model: settings.groqModel,
+          messages: [{ role: "user", content: "Reply with the single word: ok" }],
+          max_tokens: 10,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { error: data?.error?.message ?? data?.message ?? "Groq connection failed." };
+      }
+      return { ok: true, message: `Connected to ${settings.groqModel} successfully.` };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Groq request failed." };
+    }
+  } else if (settings.provider === "cloudflare") {
+    if (!settings.cloudflareAccountId || !settings.cloudflareApiToken) {
+      return { error: "No Cloudflare Account ID or API Token saved." };
+    }
+    try {
+      const res = await fetch(
+        `https://api.cloudflare.com/client/v4/accounts/${settings.cloudflareAccountId}/ai/run/${settings.cloudflareModel}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${settings.cloudflareApiToken}`,
+          },
+          body: JSON.stringify({
+            prompt: "Reply with the single word: ok",
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok || !data?.success) {
+        const errorMsg = data?.errors?.[0]?.message || res.statusText || "Request failed.";
+        return { error: `Cloudflare Workers AI connection failed: ${errorMsg}` };
+      }
+      return { ok: true, message: `Connected to ${settings.cloudflareModel} successfully.` };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Cloudflare Workers AI request failed." };
+    }
+  } else if (settings.provider === "mistral") {
+    if (!settings.mistralApiKey) return { error: "No Mistral API key saved." };
+    try {
+      const res = await fetch("https://api.mistral.ai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${settings.mistralApiKey}`,
+        },
+        body: JSON.stringify({
+          model: settings.mistralModel,
+          messages: [{ role: "user", content: "Reply with the single word: ok" }],
+          max_tokens: 10,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { error: data?.error?.message ?? data?.message ?? "Mistral connection failed." };
+      }
+      return { ok: true, message: `Connected to ${settings.mistralModel} successfully.` };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : "Mistral request failed." };
+    }
   } else {
     if (!settings.geminiApiKey) return { error: "No Gemini API key saved." };
     try {
@@ -290,6 +385,16 @@ export async function testAiAction(): Promise<{ error?: string; ok?: boolean; me
 
 export const testGeminiAction = testAiAction;
 
+// ---------- Storage Provider ----------
+
+export async function saveStorageProviderAction(prev: unknown, formData: FormData): Promise<{ error?: string }> {
+  if (!(await isAdmin())) return unauthorized();
+  const provider = String(formData.get("provider") ?? "filegarden").trim();
+  await setSetting("storage_provider", provider);
+  revalidatePath("/admin/settings");
+  return {};
+}
+
 // ---------- File Garden ----------
 
 export async function saveFileGardenSettingsAction(prev: unknown, formData: FormData): Promise<{ error?: string }> {
@@ -303,6 +408,16 @@ export async function saveFileGardenSettingsAction(prev: unknown, formData: Form
   await setSetting("filegarden_auth_cookie", authCookie);
   await setSetting("filegarden_public_id", publicId);
 
+  revalidatePath("/admin/settings");
+  return {};
+}
+
+// ---------- ImgCDN.dev ----------
+
+export async function saveImgCdnSettingsAction(prev: unknown, formData: FormData): Promise<{ error?: string }> {
+  if (!(await isAdmin())) return unauthorized();
+  const apiKey = String(formData.get("apiKey") ?? "").trim();
+  await setSetting("imgcdn_api_key", apiKey);
   revalidatePath("/admin/settings");
   return {};
 }

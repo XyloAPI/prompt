@@ -13,7 +13,16 @@ export default async function AdminLibraryPage() {
     listImages(),
     getAiSettings(),
   ]);
-  const model = aiSettings.provider === "nvidia" ? aiSettings.nvidiaModel : aiSettings.geminiModel;
+  const model =
+    aiSettings.provider === "nvidia"
+      ? aiSettings.nvidiaModel
+      : aiSettings.provider === "groq"
+      ? aiSettings.groqModel
+      : aiSettings.provider === "cloudflare"
+      ? aiSettings.cloudflareModel
+      : aiSettings.provider === "mistral"
+      ? aiSettings.mistralModel
+      : aiSettings.geminiModel;
 
   const totalDownloads = images.reduce((s, i) => s + (i.downloads ?? 0), 0);
 
