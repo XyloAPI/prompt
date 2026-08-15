@@ -52,6 +52,12 @@ export function Navbar() {
           >
             Videos
           </Link>
+          <Link
+            href="/tools/image-to-prompt"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Tools
+          </Link>
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
