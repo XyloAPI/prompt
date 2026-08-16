@@ -61,46 +61,48 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning className="dark">
       <head />
       <body suppressHydrationWarning className={`${spaceGrotesk.variable} ${manrope.variable} min-h-full flex flex-col font-sans antialiased`}>
-        <Script id="remove-bis-skin-checked" strategy="beforeInteractive">
-          {`
-            (function() {
-              const removeAttrs = () => {
-                document.querySelectorAll('[bis_skin_checked]').forEach(el => {
-                  el.removeAttribute('bis_skin_checked');
-                });
-              };
-              removeAttrs();
-              const observer = new MutationObserver((mutations) => {
-                for (const mutation of mutations) {
-                  if (mutation.type === 'attributes' && mutation.attributeName === 'bis_skin_checked') {
-                    const target = mutation.target;
-                    if (target && target.nodeType === 1 && target.hasAttribute('bis_skin_checked')) {
-                      target.removeAttribute('bis_skin_checked');
-                    }
-                  } else if (mutation.type === 'childList') {
-                    mutation.addedNodes.forEach(node => {
-                      if (node.nodeType === 1) {
-                        const el = node;
-                        if (el.hasAttribute('bis_skin_checked')) {
-                          el.removeAttribute('bis_skin_checked');
-                        }
-                        el.querySelectorAll('[bis_skin_checked]').forEach(child => {
-                          child.removeAttribute('bis_skin_checked');
-                        });
+        {process.env.NODE_ENV === "development" && (
+          <Script id="remove-bis-skin-checked" strategy="beforeInteractive">
+            {`
+              (function() {
+                const removeAttrs = () => {
+                  document.querySelectorAll('[bis_skin_checked]').forEach(el => {
+                    el.removeAttribute('bis_skin_checked');
+                  });
+                };
+                removeAttrs();
+                const observer = new MutationObserver((mutations) => {
+                  for (const mutation of mutations) {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'bis_skin_checked') {
+                      const target = mutation.target;
+                      if (target && target.nodeType === 1 && target.hasAttribute('bis_skin_checked')) {
+                        target.removeAttribute('bis_skin_checked');
                       }
-                    });
+                    } else if (mutation.type === 'childList') {
+                      mutation.addedNodes.forEach(node => {
+                        if (node.nodeType === 1) {
+                          const el = node;
+                          if (el.hasAttribute('bis_skin_checked')) {
+                            el.removeAttribute('bis_skin_checked');
+                          }
+                          el.querySelectorAll('[bis_skin_checked]').forEach(child => {
+                            child.removeAttribute('bis_skin_checked');
+                          });
+                        }
+                      });
+                    }
                   }
-                }
-              });
-              observer.observe(document.documentElement, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['bis_skin_checked']
-              });
-            })();
-          `}
-        </Script>
+                });
+                observer.observe(document.documentElement, {
+                  childList: true,
+                  subtree: true,
+                  attributes: true,
+                  attributeFilter: ['bis_skin_checked']
+                });
+              })();
+            `}
+          </Script>
+        )}
         <NuqsAdapter>
           <ThemeProvider>
             <Navbar />

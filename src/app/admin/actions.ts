@@ -15,7 +15,7 @@ const saveImageSchema = z.object({
   tags: z.array(z.string()).default([]),
   palette: z.array(z.object({
     hex: z.string(),
-    percentage: z.number(),
+    name: z.string().optional(),
   })).default([]),
   blurDataUrl: z.string().trim().optional(),
   width: z.number().int().positive().default(1200),
@@ -31,7 +31,7 @@ const updateImageSchema = z.object({
   tags: z.array(z.string()).default([]),
   palette: z.array(z.object({
     hex: z.string(),
-    percentage: z.number(),
+    name: z.string().optional(),
   })).default([]),
   prompt: z.string().trim().optional(),
   url: z.string().trim().url("Invalid image URL.").optional(),
