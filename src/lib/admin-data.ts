@@ -17,6 +17,7 @@ export type UpliftImageInput = {
   width?: number;
   height?: number;
   sizeBytes?: number | null;
+  blurDataUrl?: string;
 };
 
 export async function createImage(data: UpliftImageInput): Promise<Image> {
@@ -37,6 +38,7 @@ export async function createImage(data: UpliftImageInput): Promise<Image> {
     trending: 0,
     isDailyPick: false,
     createdAt: new Date().toISOString(),
+    blurDataUrl: data.blurDataUrl ?? "",
   };
 
   if (await query.hasDb()) {

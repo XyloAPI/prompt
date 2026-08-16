@@ -11,10 +11,12 @@ import {
   LinkSimple,
   DownloadSimple,
   Info,
+  Heart,
 } from "@phosphor-icons/react";
 
 import { cn } from "@/lib/utils";
 import type { Image as ImageType } from "@/db/schema";
+import { useFavoritesStore } from "@/store/favorites-store";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -42,6 +44,15 @@ export function ImageCard({
   const isThumbnailVideo = /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(previewUrl);
 
   const videoRef = React.useRef<HTMLVideoElement>(null);
+
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+  const isFavorite = useFavoritesStore((state) => state.isFavorite(image.id));
+  const isFav = mounted ? isFavorite : false;
 
   const handleCopyText = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -116,6 +127,8 @@ export function ImageCard({
               sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw"
               className="object-cover"
               priority={eager}
+              placeholder={image.blurDataUrl ? "blur" : undefined}
+              blurDataURL={image.blurDataUrl || undefined}
             />
           )}
 
@@ -130,6 +143,27 @@ export function ImageCard({
               <span>{image.category === "3d" ? "3D" : image.category}</span>
             )}
           </div>
+
+          {/* Favorites Heart Button Toggle */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleFavorite(image);
+              toast.success(isFav ? "Removed from favorites." : "Added to favorites!");
+            }}
+            className={cn(
+              "absolute top-2.5 right-2.5 z-10 flex size-7 items-center justify-center rounded-full bg-black/60 backdrop-blur-md border border-white/10 hover:bg-black/80 hover:scale-105 transition-all opacity-0 group-hover:opacity-100 shadow-sm cursor-pointer",
+              isFav && "opacity-100"
+            )}
+            aria-label={isFav ? "Remove from favorites" : "Add to favorites"}
+          >
+            <Heart
+              className={cn("size-3.5", isFav ? "text-rose-500 fill-rose-500" : "text-white")}
+              weight={isFav ? "fill" : "regular"}
+            />
+          </button>
 
           {/* Hover overlay text */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-4 pt-12 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
@@ -146,6 +180,17 @@ export function ImageCard({
             <span>View Details</span>
           </ContextMenuItem>
         </Link>
+
+        <ContextMenuItem
+          className="cursor-pointer"
+          onClick={() => {
+            toggleFavorite(image);
+            toast.success(isFav ? "Removed from favorites." : "Added to favorites!");
+          }}
+        >
+          <Heart className={cn("size-4", isFav ? "text-rose-500 fill-rose-500" : "text-muted-foreground")} weight={isFav ? "fill" : "regular"} />
+          <span>{isFav ? "Remove from Favorites" : "Add to Favorites"}</span>
+        </ContextMenuItem>
 
         <ContextMenuItem
           className="cursor-pointer"

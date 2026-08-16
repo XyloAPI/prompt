@@ -26,7 +26,33 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const image = await imageById(id);
   if (!image) return { title: "Not found" };
-  return { title: image.title, description: image.description ?? undefined };
+
+  const desc = image.description || `Browse and download "${image.title}" on Luminaq.`;
+  const shareImg = image.thumbnailUrl || image.url;
+
+  return {
+    title: image.title,
+    description: desc,
+    openGraph: {
+      title: image.title,
+      description: desc,
+      type: "website",
+      images: [
+        {
+          url: shareImg,
+          width: image.width || 1200,
+          height: image.height || 630,
+          alt: image.title,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: image.title,
+      description: desc,
+      images: [shareImg],
+    },
+  };
 }
 
 export default async function ImageDetailPage({ params }: { params: Promise<{ id: string }> }) {

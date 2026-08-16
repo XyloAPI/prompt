@@ -44,6 +44,7 @@ export const images = sqliteTable(
     createdAt: text("created_at")
       .notNull()
       .default(sql`(current_timestamp)`),
+    blurDataUrl: text("blur_data_url").default(""),
   },
   (table) => [
     index("images_category_idx").on(table.category),
@@ -51,6 +52,29 @@ export const images = sqliteTable(
   ]
 );
 
+export const errorLogs = sqliteTable(
+  "error_logs",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    message: text("message").notNull(),
+    stack: text("stack").default(""),
+    url: text("url").default(""),
+    userAgent: text("user_agent").default(""),
+    status: text("status").notNull().default("unresolved"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(current_timestamp)`),
+  },
+  (table) => [
+    index("error_logs_status_idx").on(table.status),
+    index("error_logs_created_idx").on(table.createdAt),
+  ]
+);
+
 export type Setting = typeof settings.$inferSelect;
 export type Image = typeof images.$inferSelect;
 export type NewImage = typeof images.$inferInsert;
+export type ErrorLog = typeof errorLogs.$inferSelect;
+export type NewErrorLog = typeof errorLogs.$inferInsert;

@@ -1,21 +1,29 @@
 import { NextRequest } from "next/server";
 import { listImages } from "@/lib/data";
+import Fuse from "fuse.js";
 
 export async function GET(request: NextRequest) {
-  const q = (request.nextUrl.searchParams.get("q") ?? "").trim().toLowerCase();
+  const q = (request.nextUrl.searchParams.get("q") ?? "").trim();
   const images = await listImages();
 
+  let filteredImages = images;
+
+  if (q) {
+    const fuse = new Fuse(images, {
+      keys: [
+        { name: "title", weight: 1.0 },
+        { name: "tags", weight: 0.8 },
+        { name: "category", weight: 0.5 },
+        { name: "description", weight: 0.4 },
+        { name: "prompt", weight: 0.3 }
+      ],
+      threshold: 0.4,
+    });
+    filteredImages = fuse.search(q).map((res) => res.item);
+  }
+
   const queryResult = {
-    images: images
-      .filter((i) => {
-        if (!q) return true;
-        return (
-          i.title.toLowerCase().includes(q) ||
-          (i.description ?? "").toLowerCase().includes(q) ||
-          (i.tags ?? []).some((t) => t.toLowerCase().includes(q)) ||
-          (i.category ?? "").toLowerCase().includes(q)
-        );
-      })
+    images: filteredImages
       .slice(0, 8)
       .map((i) => ({
         id: i.id,

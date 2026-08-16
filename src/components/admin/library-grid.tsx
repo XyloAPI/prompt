@@ -223,6 +223,8 @@ export function LibraryGrid({
                       fill
                       className="object-cover"
                       sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
+                      placeholder={image.blurDataUrl ? "blur" : undefined}
+                      blurDataURL={image.blurDataUrl || undefined}
                     />
                   );
                 })()}

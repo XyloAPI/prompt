@@ -2,6 +2,7 @@ import type { Category, Image } from "@/db/schema";
 import * as query from "@/db/queries";
 import { memoryImages } from "@/lib/memory";
 import { rankSimilarImages } from "@/lib/similarity";
+import Fuse from "fuse.js";
 
 export async function useDbFallback(): Promise<boolean> {
   return await query.hasDb();
@@ -15,14 +16,17 @@ function filterMemory(opts?: {
   let list = memoryImages();
   if (opts?.category) list = list.filter((i) => i.category === opts.category);
   if (opts?.search) {
-    const s = opts.search.toLowerCase();
-    list = list.filter(
-      (i) =>
-        i.title.toLowerCase().includes(s) ||
-        (i.description ?? "").toLowerCase().includes(s) ||
-        (i.prompt ?? "").toLowerCase().includes(s) ||
-        i.tags.some((t) => t.toLowerCase().includes(s))
-    );
+    const fuse = new Fuse(list, {
+      keys: [
+        { name: "title", weight: 1.0 },
+        { name: "tags", weight: 0.8 },
+        { name: "category", weight: 0.5 },
+        { name: "description", weight: 0.4 },
+        { name: "prompt", weight: 0.3 }
+      ],
+      threshold: 0.4,
+    });
+    list = fuse.search(opts.search).map((res) => res.item);
   }
   if (opts?.sort === "trending") list = [...list].sort((a, b) => b.trending - a.trending);
   else if (opts?.sort === "downloads") list = [...list].sort((a, b) => b.downloads - a.downloads);

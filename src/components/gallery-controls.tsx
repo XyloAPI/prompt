@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { X } from "@phosphor-icons/react";
 import { OptionWheel } from "@/components/ui/option-wheel";
+import { useQueryState, parseAsString, debounce } from "nuqs";
 
 import {
   Select,
@@ -38,32 +38,29 @@ export function GalleryControls({
   initialSort?: string;
   initialQuery?: string;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [query, setQuery] = React.useState(initialQuery ?? "");
+  const [category, setCategory] = useQueryState(
+    "category",
+    parseAsString.withDefault("").withOptions({ shallow: false, history: "push" })
+  );
 
-  const category = initialCategory ?? "";
-  const sort = initialSort ?? "latest";
+  const [sort, setSort] = useQueryState(
+    "sort",
+    parseAsString.withDefault("latest").withOptions({ shallow: false, history: "push" })
+  );
+
+  const [query, setQuery] = useQueryState(
+    "q",
+    parseAsString.withDefault("").withOptions({
+      shallow: false,
+      history: "push",
+      limitUrlUpdates: debounce(350),
+    })
+  );
 
   const selectedIndex = Math.max(
     0,
     categories.findIndex((c) => c.value === category)
   );
-
-  const update = (patch: Record<string, string>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(patch)) {
-      if (value) params.set(key, value);
-      else params.delete(key);
-    }
-    if ("category" in patch) {
-      try {
-        sessionStorage.setItem("home_active_category", patch.category || "");
-      } catch {}
-    }
-    router.push(`${pathname}?${params.toString()}`);
-  };
 
   return (
     <div className="flex flex-col gap-6 border-b border-border/40 pb-6 lg:flex-row lg:items-center lg:justify-between">
@@ -73,9 +70,12 @@ export function GalleryControls({
           items={categories.map((c) => c.label)}
           defaultSelected={selectedIndex}
           selectedIndex={selectedIndex}
-          onChange={(idx) => {
+          onChange={async (idx) => {
             const targetCat = categories[idx]?.value ?? "";
-            update({ category: targetCat });
+            await setCategory(targetCat || null);
+            try {
+              sessionStorage.setItem("home_active_category", targetCat);
+            } catch {}
           }}
           align="top"
           fontSize={1.25}
@@ -99,8 +99,7 @@ export function GalleryControls({
             placeholder="Search images…"
             value={query}
             onChange={(e) => {
-              setQuery(e.target.value);
-              update({ q: e.target.value });
+              setQuery(e.target.value || null);
             }}
           />
           {query && (
@@ -109,8 +108,7 @@ export function GalleryControls({
                 type="button"
                 className="rounded-full p-0.5 hover:bg-muted"
                 onClick={() => {
-                  setQuery("");
-                  update({ q: "" });
+                  setQuery(null);
                 }}
                 aria-label="Clear search"
               >
@@ -120,7 +118,7 @@ export function GalleryControls({
           )}
         </InputGroup>
 
-        <Select value={sort} onValueChange={(v: string) => update({ sort: v })}>
+        <Select value={sort} onValueChange={(v: string) => setSort(v || null)}>
           <SelectTrigger className="w-44">
             <SelectValue placeholder="Sort" />
           </SelectTrigger>

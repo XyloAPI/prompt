@@ -3,6 +3,42 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { verifyAdminPassword, clearAdminSession, isAdmin } from "@/lib/auth";
+import { z } from "zod";
+
+const saveImageSchema = z.object({
+  title: z.string().trim().min(1, "Title is required."),
+  url: z.string().trim().url("Invalid image URL."),
+  thumbnailUrl: z.string().trim().optional(),
+  description: z.string().trim().optional(),
+  category: z.enum(["photo", "illustration", "3d", "video"]),
+  prompt: z.string().trim().optional(),
+  tags: z.array(z.string()).default([]),
+  palette: z.array(z.object({
+    hex: z.string(),
+    percentage: z.number(),
+  })).default([]),
+  blurDataUrl: z.string().trim().optional(),
+  width: z.number().int().positive().default(1200),
+  height: z.number().int().positive().default(800),
+  sizeBytes: z.number().int().nonnegative().default(0),
+});
+
+const updateImageSchema = z.object({
+  id: z.string().min(1, "Image ID is required."),
+  title: z.string().trim().min(1, "Title is required."),
+  description: z.string().trim().optional(),
+  category: z.enum(["photo", "illustration", "3d", "video"]),
+  tags: z.array(z.string()).default([]),
+  palette: z.array(z.object({
+    hex: z.string(),
+    percentage: z.number(),
+  })).default([]),
+  prompt: z.string().trim().optional(),
+  url: z.string().trim().url("Invalid image URL.").optional(),
+  thumbnailUrl: z.string().trim().optional(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+});
 import {
   createImage,
   updateImage,
@@ -171,14 +207,12 @@ export async function saveImageAction(
   const prompt = String(formData.get("prompt") ?? "").trim();
   const tagsRaw = String(formData.get("tags") ?? "").trim();
   const paletteRaw = String(formData.get("palette") ?? "").trim();
+  const blurDataUrl = String(formData.get("blurDataUrl") ?? "").trim();
 
-  if (!title) return { error: "Title is required." };
-  if (!url) return { error: "Image URL is required." };
-
-  let palette: PaletteColor[] = [];
+  let palette: any[] = [];
   if (paletteRaw) {
     try {
-      palette = JSON.parse(paletteRaw) as PaletteColor[];
+      palette = JSON.parse(paletteRaw);
     } catch {
       return { error: "Invalid palette data." };
     }
@@ -195,18 +229,40 @@ export async function saveImageAction(
   const height = heightRaw > 0 ? heightRaw : 800;
   const sizeBytes = Number(String(formData.get("sizeBytes") ?? "0"));
 
-  await createImage({
+  const parsed = saveImageSchema.safeParse({
     title,
+    url,
+    thumbnailUrl,
     description,
     category,
-    tags,
     prompt,
+    tags,
     palette,
-    url,
-    thumbnailUrl: thumbnailUrl || url,
+    blurDataUrl,
     width,
     height,
     sizeBytes,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message || "Validation failed." };
+  }
+
+  const data = parsed.data;
+
+  await createImage({
+    title: data.title,
+    description: data.description,
+    category: data.category,
+    tags: data.tags,
+    prompt: data.prompt,
+    palette: data.palette,
+    url: data.url,
+    thumbnailUrl: data.thumbnailUrl || data.url,
+    width: data.width,
+    height: data.height,
+    sizeBytes: data.sizeBytes,
+    blurDataUrl: data.blurDataUrl,
   });
 
   revalidatePath("/gallery");
@@ -238,21 +294,26 @@ export async function updateImageAction(input: {
 }): Promise<{ error?: string; ok?: boolean }> {
   if (!(await isAdmin())) return unauthorized();
 
-  const image = await getImageById(input.id);
+  const parsed = updateImageSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message || "Validation failed." };
+  }
+
+  const data = parsed.data;
+  const image = await getImageById(data.id);
   if (!image) return { error: "Image not found." };
-  if (!input.title) return { error: "Title is required." };
 
   await updateImage(image.id, {
-    title: input.title,
-    description: input.description,
-    category: input.category,
-    tags: input.tags,
-    palette: input.palette,
-    prompt: input.prompt,
-    url: input.url ?? image.url,
-    thumbnailUrl: input.thumbnailUrl ?? image.thumbnailUrl,
-    width: input.width !== undefined && input.width > 0 ? input.width : (image.width ?? undefined),
-    height: input.height !== undefined && input.height > 0 ? input.height : (image.height ?? undefined),
+    title: data.title,
+    description: data.description,
+    category: data.category,
+    tags: data.tags,
+    palette: data.palette,
+    prompt: data.prompt,
+    url: data.url ?? image.url,
+    thumbnailUrl: data.thumbnailUrl ?? image.thumbnailUrl,
+    width: data.width !== undefined && data.width > 0 ? data.width : (image.width ?? undefined),
+    height: data.height !== undefined && data.height > 0 ? data.height : (image.height ?? undefined),
   });
 
   revalidatePath("/admin");
@@ -469,5 +530,29 @@ export async function uploadToFileGardenAction(input: {
     return { url: publicUrl };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed to upload to File Garden." };
+  }
+}
+
+export async function resolveErrorLogAction(id: string): Promise<{ error?: string; ok?: boolean }> {
+  if (!(await isAdmin())) return { error: "Unauthorized." };
+  try {
+    const { resolveErrorLog } = await import("@/db/queries");
+    await resolveErrorLog(id);
+    revalidatePath("/admin/logs");
+    return { ok: true };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to resolve log." };
+  }
+}
+
+export async function deleteErrorLogAction(id: string): Promise<{ error?: string; ok?: boolean }> {
+  if (!(await isAdmin())) return { error: "Unauthorized." };
+  try {
+    const { deleteErrorLog } = await import("@/db/queries");
+    await deleteErrorLog(id);
+    revalidatePath("/admin/logs");
+    return { ok: true };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to delete log." };
   }
 }

@@ -15,7 +15,7 @@ export const MISTRAL_MODEL_SETTING = "mistral_model";
 
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
 export const DEFAULT_NVIDIA_MODEL = "meta/llama-3.2-90b-vision-instruct";
-export const DEFAULT_GROQ_MODEL = "llama-3.2-11b-vision-preview";
+export const DEFAULT_GROQ_MODEL = "qwen/qwen3.6-27b";
 export const DEFAULT_CLOUDFLARE_MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
 export const DEFAULT_MISTRAL_MODEL = "pixtral-12b-2409";
 
@@ -45,8 +45,7 @@ export const NVIDIA_VISION_MODELS = [
 ];
 
 export const GROQ_VISION_MODELS = [
-  { value: "llama-3.2-11b-vision-preview", label: "Llama 3.2 11B Vision (Recommended)" },
-  { value: "llama-3.2-90b-vision-preview", label: "Llama 3.2 90B Vision" },
+  { value: "qwen/qwen3.6-27b", label: "Qwen 3.6 27B" },
 ];
 
 export const CLOUDFLARE_VISION_MODELS = [
@@ -205,6 +204,10 @@ export async function analyzeImageBuffer(
 
   if (modelOverride) {
     if (
+      GROQ_VISION_MODELS.some((m) => m.value === modelOverride)
+    ) {
+      provider = "groq";
+    } else if (
       modelOverride.includes("/") ||
       NVIDIA_VISION_MODELS.some((m) => m.value === modelOverride)
     ) {
@@ -217,10 +220,6 @@ export async function analyzeImageBuffer(
       } else {
         provider = "nvidia";
       }
-    } else if (
-      GROQ_VISION_MODELS.some((m) => m.value === modelOverride)
-    ) {
-      provider = "groq";
     } else if (
       modelOverride.startsWith("pixtral-") ||
       modelOverride.startsWith("mistral-") ||
@@ -615,8 +614,9 @@ async function analyzeWithGroq(
           },
         ],
         temperature: 0.2,
-        max_tokens: 1024,
+        max_tokens: 2048,
         response_format: { type: "json_object" },
+        reasoning_format: "hidden",
       }),
     });
 

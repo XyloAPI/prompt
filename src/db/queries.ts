@@ -2,9 +2,11 @@ import { desc, eq, and, sql } from "drizzle-orm";
 import {
   images,
   settings,
+  errorLogs,
   type Category,
   type Image,
   type Setting,
+  type ErrorLog,
 } from "@/db/schema";
 
 async function hasDb(): Promise<boolean> {
@@ -102,6 +104,26 @@ export async function setSetting(key: string, value: string): Promise<void> {
 export async function deleteSetting(key: string): Promise<void> {
   const db = (await import("@/db")).db;
   await db.delete(settings).where(eq(settings.key, key));
+}
+
+// ---------- Error Logs ----------
+
+export async function getErrorLogs(): Promise<ErrorLog[]> {
+  const db = (await import("@/db")).db;
+  return db.select().from(errorLogs).orderBy(desc(errorLogs.createdAt));
+}
+
+export async function deleteErrorLog(id: string): Promise<void> {
+  const db = (await import("@/db")).db;
+  await db.delete(errorLogs).where(eq(errorLogs.id, id));
+}
+
+export async function resolveErrorLog(id: string): Promise<void> {
+  const db = (await import("@/db")).db;
+  await db
+    .update(errorLogs)
+    .set({ status: "resolved" })
+    .where(eq(errorLogs.id, id));
 }
 
 export { hasDb };

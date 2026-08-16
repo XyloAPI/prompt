@@ -30,6 +30,35 @@ type Metadata = {
   prompt: string;
 };
 
+export async function generateBlurDataUrl(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const isVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name);
+    if (isVideo) {
+      return resolve("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=");
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 10;
+        canvas.height = 10;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, 10, 10);
+          resolve(canvas.toDataURL("image/jpeg", 0.3));
+        } else {
+          resolve("");
+        }
+      };
+      img.onerror = () => resolve("");
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+}
+
 export function UploadForm({
   model,
   onSuccess,
@@ -56,6 +85,7 @@ export function UploadForm({
   const [masterUrl, setMasterUrl] = React.useState("");
   const [previewUrl, setPreviewUrl] = React.useState("");
   const [category, setCategory] = React.useState<string>("photo");
+  const [blurDataUrl, setBlurDataUrl] = React.useState("");
   const [metadata, setMetadata] = React.useState<Metadata>({
     title: "",
     description: "",
@@ -140,6 +170,9 @@ export function UploadForm({
       setUploadingMaster(true);
       setMasterFile(file);
       setMasterSizeBytes(file.size);
+      generateBlurDataUrl(file)
+        .then((bUrl) => setBlurDataUrl(bUrl))
+        .catch((err) => console.error("Blur hash generation failed:", err));
     } else {
       setUploadingPreview(true);
       setPreviewFile(file);
@@ -400,6 +433,7 @@ export function UploadForm({
       form.set("prompt", metadata.prompt.trim());
       form.set("tags", metadata.tags.join(", "));
       form.set("palette", JSON.stringify(metadata.palette));
+      form.set("blurDataUrl", blurDataUrl);
 
       const res = await saveImageAction({}, form);
       if (res?.error) {
