@@ -3,7 +3,6 @@
 import * as React from "react";
 import { X } from "@phosphor-icons/react";
 import { OptionWheel } from "@/components/ui/option-wheel";
-import { useQueryState, parseAsString, debounce } from "nuqs";
 
 import {
   Select,
@@ -30,32 +29,30 @@ const sortOptions = [
 ];
 
 export function GalleryControls({
-  initialCategory,
-  initialSort,
-  initialQuery,
+  category,
+  sort,
+  query,
+  onCategoryChange,
+  onSortChange,
+  onQueryChange,
 }: {
-  initialCategory?: string;
-  initialSort?: string;
-  initialQuery?: string;
+  category: string;
+  sort: string;
+  query: string;
+  onCategoryChange: (v: string) => void;
+  onSortChange: (v: string) => void;
+  onQueryChange: (v: string) => void;
 }) {
-  const [category, setCategory] = useQueryState(
-    "category",
-    parseAsString.withDefault("").withOptions({ shallow: false, history: "push" })
-  );
+  const [draft, setDraft] = React.useState(query);
 
-  const [sort, setSort] = useQueryState(
-    "sort",
-    parseAsString.withDefault("latest").withOptions({ shallow: false, history: "push" })
-  );
-
-  const [query, setQuery] = useQueryState(
-    "q",
-    parseAsString.withDefault("").withOptions({
-      shallow: false,
-      history: "push",
-      limitUrlUpdates: debounce(350),
-    })
-  );
+  // Debounce the search input before pushing it up.
+  React.useEffect(() => {
+    if (draft === query) return undefined;
+    const t = setTimeout(() => onQueryChange(draft), 350);
+    return () => clearTimeout(t);
+    // `query` intentionally excluded: this effect only forwards local edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft]);
 
   const selectedIndex = Math.max(
     0,
@@ -70,9 +67,9 @@ export function GalleryControls({
           items={categories.map((c) => c.label)}
           defaultSelected={selectedIndex}
           selectedIndex={selectedIndex}
-          onChange={async (idx) => {
+          onChange={(idx) => {
             const targetCat = categories[idx]?.value ?? "";
-            await setCategory(targetCat || null);
+            onCategoryChange(targetCat);
             try {
               sessionStorage.setItem("home_active_category", targetCat);
             } catch {}
@@ -97,18 +94,17 @@ export function GalleryControls({
         <InputGroup className="w-full lg:w-64">
           <InputGroupInput
             placeholder="Search images…"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value || null);
-            }}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
           />
-          {query && (
+          {draft && (
             <InputGroupAddon>
               <button
                 type="button"
                 className="rounded-full p-0.5 hover:bg-muted"
                 onClick={() => {
-                  setQuery(null);
+                  setDraft("");
+                  onQueryChange("");
                 }}
                 aria-label="Clear search"
               >
@@ -118,7 +114,7 @@ export function GalleryControls({
           )}
         </InputGroup>
 
-        <Select value={sort} onValueChange={(v: string) => setSort(v || null)}>
+        <Select value={sort} onValueChange={(v: string) => onSortChange(v || "latest")}>
           <SelectTrigger className="w-44">
             <SelectValue placeholder="Sort" />
           </SelectTrigger>

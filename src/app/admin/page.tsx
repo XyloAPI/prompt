@@ -1,3 +1,6 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -6,15 +9,22 @@ import {
   TrendUp,
   DownloadSimple,
 } from "@phosphor-icons/react/dist/ssr";
-import { getDashboardData, formatBytes } from "@/lib/dashboard-data";
+import { formatBytes } from "@/lib/format";
 import { UploadsChart, CategoryChart, TopTagsChart, TopDownloadsChart } from "@/components/charts/dashboard-charts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { apiGetDashboard, type DashboardData } from "@/lib/admin-api";
 
-export const dynamic = "force-dynamic";
+export default function AdminDashboardPage() {
+  const [data, setData] = React.useState<DashboardData | null>(null);
 
-export default async function AdminDashboardPage() {
-  const data = await getDashboardData();
+  React.useEffect(() => {
+    apiGetDashboard().then(setData).catch(() => setData(null));
+  }, []);
+
+  if (!data) {
+    return <p className="text-sm text-muted-foreground">Loading dashboard…</p>;
+  }
 
   const statCards = [
     {

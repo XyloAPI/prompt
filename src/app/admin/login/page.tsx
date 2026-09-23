@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { isAdmin } from "@/lib/auth";
 import { LoginForm } from "./login-form";
 import { Logo } from "@/components/logo";
 
@@ -8,8 +6,7 @@ export const metadata: Metadata = {
   title: "Admin Login",
 };
 
-export default async function AdminLoginPage() {
-  if (await isAdmin()) redirect("/admin");
+export default function AdminLoginPage() {
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4">
       <div className="w-full max-w-sm">

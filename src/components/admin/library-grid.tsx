@@ -33,19 +33,18 @@ export function LibraryGrid({
   images: ImageType[];
   model?: string;
 }) {
-  const [filter, setFilter] = React.useState<Category | "all">("all");
-  const [search, setSearch] = React.useState("");
-  const [sortBy, setSortBy] = React.useState<"newest" | "downloads" | "trending">("newest");
-  const [editing, setEditing] = React.useState<ImageType | null>(null);
-
-  React.useEffect(() => {
+  const [filter, setFilter] = React.useState<Category | "all">(() => {
     try {
       const saved = sessionStorage.getItem("admin_library_filter");
       if (saved && ["all", "photo", "illustration", "3d", "video"].includes(saved)) {
-        setFilter(saved as Category | "all");
+        return saved as Category | "all";
       }
     } catch {}
-  }, []);
+    return "all";
+  });
+  const [search, setSearch] = React.useState("");
+  const [sortBy, setSortBy] = React.useState<"newest" | "downloads" | "trending">("newest");
+  const [editing, setEditing] = React.useState<ImageType | null>(null);
 
   const handleFilterChange = (cat: Category | "all") => {
     setFilter(cat);
@@ -65,7 +64,6 @@ export function LibraryGrid({
         (i) =>
           i.title.toLowerCase().includes(q) ||
           (i.description ?? "").toLowerCase().includes(q) ||
-          (i.prompt ?? "").toLowerCase().includes(q) ||
           (i.tags ?? []).some((t) => t.toLowerCase().includes(q))
       );
     }
@@ -110,7 +108,7 @@ export function LibraryGrid({
             <ArrowsDownUp className="size-3.5" />
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => setSortBy(e.target.value as "newest" | "downloads" | "trending")}
               className="bg-transparent text-xs font-medium text-foreground outline-none cursor-pointer"
             >
               <option value="newest" className="bg-popover text-foreground">Newest</option>

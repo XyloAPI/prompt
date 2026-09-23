@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { saveFileGardenSettingsAction } from "@/app/admin/actions";
+import { apiSaveFileGarden } from "@/lib/admin-api";
 import { RippleButton, RippleButtonRipples } from "@/components/animate-ui/components/buttons/ripple";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -17,7 +16,6 @@ export function FileGardenSettingsForm({
   initialAuthCookie: string;
   initialPublicId: string;
 }) {
-  const router = useRouter();
   const [userId, setUserId] = React.useState(initialUserId);
   const [authCookie, setAuthCookie] = React.useState(initialAuthCookie);
   const [publicId, setPublicId] = React.useState(initialPublicId);
@@ -30,18 +28,17 @@ export function FileGardenSettingsForm({
     }
     setSaving(true);
     try {
-      const form = new FormData();
-      form.set("userId", userId.trim());
-      form.set("authCookie", authCookie.trim());
-      form.set("publicId", publicId.trim());
-
-      const res = await saveFileGardenSettingsAction({}, form);
+      const res = await apiSaveFileGarden({
+        userId: userId.trim(),
+        authCookie: authCookie.trim(),
+        publicId: publicId.trim(),
+      });
       if (res?.error) {
         toast.error(res.error);
         return;
       }
       toast.success("Storage settings saved!");
-      router.refresh();
+      window.location.reload();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save settings.");
     } finally {

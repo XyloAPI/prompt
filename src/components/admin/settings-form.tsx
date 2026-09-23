@@ -1,22 +1,21 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { saveAiSettingsAction, testAiAction } from "@/app/admin/actions";
+import { apiSaveAiSettings, apiTestAi } from "@/lib/admin-api";
 import { Button } from "@/components/ui/button";
 import { RippleButton, RippleButtonRipples } from "@/components/animate-ui/components/buttons/ripple";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { FormSelect } from "@/components/admin/form-select";
 import {
-  AiProvider,
+  type AiProvider,
   GEMINI_VISION_MODELS,
   NVIDIA_VISION_MODELS,
   GROQ_VISION_MODELS,
   CLOUDFLARE_VISION_MODELS,
   MISTRAL_VISION_MODELS,
-} from "@/lib/ai-assistant";
+} from "@/lib/ai-models";
 
 const PROVIDER_OPTIONS = [
   { value: "gemini", label: "Google Gemini" },
@@ -53,7 +52,6 @@ export function SettingsForm({
   initialMistralApiKey?: string;
   initialMistralModel?: string;
 }) {
-  const router = useRouter();
   const [provider, setProvider] = React.useState<AiProvider>(initialProvider || "gemini");
   const [geminiApiKey, setGeminiApiKey] = React.useState(initialGeminiApiKey);
   const [geminiModel, setGeminiModel] = React.useState(initialGeminiModel);
@@ -84,27 +82,26 @@ export function SettingsForm({
   async function handleSave() {
     setSaving(true);
     try {
-      const form = new FormData();
-      form.set("provider", provider);
-      form.set("geminiApiKey", geminiApiKey);
-      form.set("geminiModel", geminiModel);
-      form.set("nvidiaApiKey", nvidiaApiKey);
-      form.set("nvidiaModel", nvidiaModel);
-      form.set("groqApiKey", groqApiKey);
-      form.set("groqModel", groqModel);
-      form.set("cloudflareAccountId", cloudflareAccountId);
-      form.set("cloudflareApiToken", cloudflareApiToken);
-      form.set("cloudflareModel", cloudflareModel);
-      form.set("mistralApiKey", mistralApiKey);
-      form.set("mistralModel", mistralModel);
-
-      const res = await saveAiSettingsAction({}, form);
+      const res = await apiSaveAiSettings({
+        provider,
+        geminiApiKey,
+        geminiModel,
+        nvidiaApiKey,
+        nvidiaModel,
+        groqApiKey,
+        groqModel,
+        cloudflareAccountId,
+        cloudflareApiToken,
+        cloudflareModel,
+        mistralApiKey,
+        mistralModel,
+      });
       if (res?.error) {
         toast.error(res.error);
         return;
       }
       toast.success("AI Settings saved successfully");
-      router.refresh();
+      window.location.reload();
     } finally {
       setSaving(false);
     }
@@ -113,7 +110,7 @@ export function SettingsForm({
   async function handleTest() {
     setTesting(true);
     try {
-      const res = await testAiAction();
+      const res = await apiTestAi();
       if (res?.error) {
         toast.error(res.error);
         return;

@@ -1,16 +1,7 @@
-import { getErrorLogs } from "@/db/queries";
-import { isAdmin } from "@/lib/auth";
-import { unauthorized } from "next/navigation";
 import { AdminNav } from "@/components/admin/admin-nav";
 import { LogsClient } from "./logs-client";
 
-export const dynamic = "force-dynamic";
-
-export default async function AdminLogsPage() {
-  if (!(await isAdmin())) return unauthorized();
-
-  const logs = await getErrorLogs();
-
+export default function AdminLogsPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -24,7 +15,7 @@ export default async function AdminLogsPage() {
 
       <AdminNav />
 
-      <LogsClient initialLogs={logs} />
+      <LogsClient />
     </div>
   );
 }

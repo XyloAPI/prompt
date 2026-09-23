@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Trash } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,10 +14,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { deleteImageAction } from "@/app/admin/actions";
+import { apiDeleteImage } from "@/lib/admin-api";
 
 export function DeleteImageButton({ id, title }: { id: string; title: string }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
 
   return (
@@ -39,9 +37,9 @@ export function DeleteImageButton({ id, title }: { id: string; title: string }) 
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={async () => {
-              await deleteImageAction(id);
+              await apiDeleteImage(id);
               setOpen(false);
-              router.refresh();
+              window.location.reload();
             }}
             className="bg-destructive text-white hover:bg-destructive/90"
           >

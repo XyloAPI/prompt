@@ -15,7 +15,7 @@ import {
 } from "@phosphor-icons/react";
 
 import { cn } from "@/lib/utils";
-import type { Image as ImageType } from "@/db/schema";
+import type { CardImage } from "@/lib/card-image";
 import { useFavoritesStore } from "@/store/favorites-store";
 import {
   ContextMenu,
@@ -30,7 +30,7 @@ export function ImageCard({
   className,
   eager = false,
 }: {
-  image: ImageType;
+  image: CardImage;
   className?: string;
   eager?: boolean;
 }) {

@@ -1,37 +1,35 @@
-import type { Metadata } from "next";
-import { getAiSettings } from "@/lib/ai-assistant";
+"use client";
+
+import * as React from "react";
 import { SettingsForm } from "@/components/admin/settings-form";
 import { StorageSettingsPanel } from "@/components/admin/storage-settings-panel";
+import { PublishButton } from "@/components/admin/publish-button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { getSetting } from "@/db/queries";
+import { apiGetAiSettings, apiGetStorageSettings, type AiSettings, type StorageSettings } from "@/lib/admin-api";
 
-export const metadata: Metadata = { title: "Admin Settings" };
-export const dynamic = "force-dynamic";
+export default function AdminSettingsPage() {
+  const [ai, setAi] = React.useState<AiSettings | null>(null);
+  const [storage, setStorage] = React.useState<StorageSettings | null>(null);
 
-export default async function AdminSettingsPage() {
-  const [
-    aiSettings,
-    storageProvider,
-    fgUserId,
-    fgAuthCookie,
-    fgPublicId,
-    imgCdnApiKey,
-  ] = await Promise.all([
-    getAiSettings(),
-    getSetting("storage_provider"),
-    getSetting("filegarden_user_id"),
-    getSetting("filegarden_auth_cookie"),
-    getSetting("filegarden_public_id"),
-    getSetting("imgcdn_api_key"),
-  ]);
+  React.useEffect(() => {
+    apiGetAiSettings().then(setAi).catch(() => setAi(null));
+    apiGetStorageSettings().then(setStorage).catch(() => setStorage(null));
+  }, []);
+
+  if (!ai || !storage) {
+    return <p className="text-sm text-muted-foreground">Loading settings…</p>;
+  }
 
   return (
     <div className="max-w-2xl space-y-8">
-      <div>
-        <h2 className="text-xl font-bold tracking-tight text-foreground">Admin Settings</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage your AI assistant configurations and external storage credentials.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-foreground">Admin Settings</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage your AI assistant configurations and external storage credentials.
+          </p>
+        </div>
+        <PublishButton />
       </div>
 
       {/* Storage integration */}
@@ -44,11 +42,11 @@ export default async function AdminSettingsPage() {
         </CardHeader>
         <CardContent>
           <StorageSettingsPanel
-            initialProvider={storageProvider || "filegarden"}
-            initialFgUserId={fgUserId || ""}
-            initialFgAuthCookie={fgAuthCookie || ""}
-            initialFgPublicId={fgPublicId || ""}
-            initialImgCdnApiKey={imgCdnApiKey || ""}
+            initialProvider={storage.storageProvider || "filegarden"}
+            initialFgUserId={storage.fgUserId || ""}
+            initialFgAuthCookie={storage.fgAuthCookie || ""}
+            initialFgPublicId={storage.fgPublicId || ""}
+            initialImgCdnApiKey={storage.imgCdnApiKey || ""}
           />
         </CardContent>
       </Card>
@@ -63,18 +61,18 @@ export default async function AdminSettingsPage() {
         </CardHeader>
         <CardContent>
           <SettingsForm
-            initialProvider={aiSettings.provider}
-            initialGeminiApiKey={aiSettings.geminiApiKey}
-            initialGeminiModel={aiSettings.geminiModel}
-            initialNvidiaApiKey={aiSettings.nvidiaApiKey}
-            initialNvidiaModel={aiSettings.nvidiaModel}
-            initialGroqApiKey={aiSettings.groqApiKey}
-            initialGroqModel={aiSettings.groqModel}
-            initialCloudflareAccountId={aiSettings.cloudflareAccountId}
-            initialCloudflareApiToken={aiSettings.cloudflareApiToken}
-            initialCloudflareModel={aiSettings.cloudflareModel}
-            initialMistralApiKey={aiSettings.mistralApiKey}
-            initialMistralModel={aiSettings.mistralModel}
+            initialProvider={ai.provider}
+            initialGeminiApiKey={ai.geminiApiKey}
+            initialGeminiModel={ai.geminiModel}
+            initialNvidiaApiKey={ai.nvidiaApiKey}
+            initialNvidiaModel={ai.nvidiaModel}
+            initialGroqApiKey={ai.groqApiKey}
+            initialGroqModel={ai.groqModel}
+            initialCloudflareAccountId={ai.cloudflareAccountId}
+            initialCloudflareApiToken={ai.cloudflareApiToken}
+            initialCloudflareModel={ai.cloudflareModel}
+            initialMistralApiKey={ai.mistralApiKey}
+            initialMistralModel={ai.mistralModel}
           />
         </CardContent>
       </Card>

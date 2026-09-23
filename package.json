@@ -4,21 +4,21 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node -e \"process.env.CF_PAGES ? require('child_process').execSync('npm run build:cf', {stdio:'inherit'}) : require('child_process').execSync('next build', {stdio:'inherit'})\"",
-    "build:cf": "next build --webpack && node scripts/patch-nft.js && opennextjs-cloudflare build --skipNextBuild && node scripts/write-worker-shim.js",
-    "preview:cf": "opennextjs-cloudflare preview",
-    "deploy:cf": "npm run build:cf && opennextjs-cloudflare deploy",
+    "build": "npm run build:static",
+    "build:static": "tsx --env-file=.env scripts/export-images-json.ts && next build",
+    "deploy:pages": "wrangler pages deploy out --project-name=prompt",
     "start": "next start",
     "lint": "eslint",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx --env-file=.env scripts/seed.ts"
+    "db:seed": "tsx --env-file=.env scripts/seed.ts",
+    "api:dev": "wrangler dev --config workers/mini-api/wrangler.toml",
+    "api:deploy": "wrangler deploy --config workers/mini-api/wrangler.toml"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",
     "@phosphor-icons/react": "^2.1.10",
     "@radix-ui/react-context-menu": "^2.3.7",
-    "@sentry/nextjs": "^10.70.0",
     "@vidstack/react": "^1.15.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -30,7 +30,6 @@
     "lucide-react": "^1.31.0",
     "motion": "^13.1.0",
     "next": "16.3.0",
-    "nuqs": "^2.9.5",
     "radix-ui": "^1.6.7",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -45,7 +44,6 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260812.1",
-    "@opennextjs/cloudflare": "^1.20.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

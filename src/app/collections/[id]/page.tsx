@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { listImages } from "@/lib/data";
-import { getCollectionDataById } from "@/lib/collections";
+import { COLLECTIONS, getCollectionDataById } from "@/lib/collections";
 import { ImageCard } from "@/components/image-card";
 import { Masonry, MasonryItem } from "@/components/masonry";
 import { BlurFade } from "@/components/magicui/blur-fade";
@@ -19,7 +19,11 @@ type Props = {
   params: Promise<{ id: string }>;
 };
 
-export const revalidate = 60;
+export const dynamicParams = false;
+
+export async function generateStaticParams(): Promise<{ id: string }[]> {
+  return COLLECTIONS.map((c) => ({ id: c.id }));
+}
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;

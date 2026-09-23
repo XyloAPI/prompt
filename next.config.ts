@@ -1,28 +1,12 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
 
+// Static export for Cloudflare Pages (free, no Functions, no CPU limits).
+// Dynamic/admin behavior lives in workers/mini-api + client-side fetch.
 const nextConfig: NextConfig = {
-  output: "standalone",
-  serverExternalPackages: ["@libsql/client", "@libsql/isomorphic-ws"],
+  output: "export",
   images: {
     unoptimized: true,
-    remotePatterns: [
-      { protocol: "https", hostname: "picsum.photos" },
-      { protocol: "https", hostname: "*.workers.dev" },
-      { protocol: "https", hostname: "*.r2.cloudflarestorage.com" },
-      { protocol: "https", hostname: "filegarden.com" },
-      { protocol: "https", hostname: "*.filegarden.com" },
-      { protocol: "https", hostname: "file.garden" },
-      { protocol: "https", hostname: "*.file.garden" },
-    ],
-  },
-  experimental: {
-    serverActions: {
-      bodySizeLimit: "50mb",
-    },
   },
 };
 
-export default withSentryConfig(nextConfig, {
-  silent: true,
-});
+export default nextConfig;

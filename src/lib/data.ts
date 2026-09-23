@@ -34,7 +34,7 @@ function filterMemory(opts?: {
   else if (opts?.sort === "downloads") list = [...list].sort((a, b) => b.downloads - a.downloads);
   else list = [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const offset = Math.max(opts?.offset ?? 0, 0);
-  const limit = Math.min(Math.max(opts?.limit ?? 100, 1), 200);
+  const limit = Math.min(Math.max(opts?.limit ?? 100, 1), 2000);
   return list.slice(offset, offset + limit);
 }
 
@@ -81,6 +81,15 @@ export async function relatedImages(image: Image, limit = 4): Promise<Image[]> {
   } catch {
     const all = memoryImages();
     return rankSimilarImages(image, all, limit);
+  }
+}
+
+export async function imageIdsForBuild(): Promise<string[]> {
+  if (!await query.hasDb()) return memoryImages().map((i) => i.id);
+  try {
+    return await query.listImageIds();
+  } catch {
+    return memoryImages().map((i) => i.id);
   }
 }
 

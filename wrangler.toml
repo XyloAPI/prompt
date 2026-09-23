@@ -1,7 +1,5 @@
+# Static export hosting (no Functions, no CPU limits).
+# Build with `npm run build:static`, output goes to `out/`.
 name = "prompt"
-pages_build_output_dir = ".open-next/assets"
+pages_build_output_dir = "out"
 compatibility_date = "2025-01-01"
-compatibility_flags = ["nodejs_compat"]
-
-[placement]
-mode = "smart"

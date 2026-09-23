@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
-import { imageById, relatedImages } from "@/lib/data";
+import { imageById, imageIdsForBuild, relatedImages } from "@/lib/data";
 import { DownloadButton } from "@/components/download-button";
 import { CopyButton } from "@/components/animate-ui/components/buttons/copy";
 import { ColorPalette, SectionTitle } from "@/components/color-palette";
@@ -22,7 +22,12 @@ const categoryLabels: Record<string, string> = {
   video: "Video",
 };
 
-export const revalidate = 60;
+export const dynamicParams = false;
+
+export async function generateStaticParams(): Promise<{ id: string }[]> {
+  const images = await imageIdsForBuild();
+  return images.map((id) => ({ id }));
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;

@@ -33,7 +33,9 @@ export async function getImages(opts?: {
         : desc(images.createdAt);
 
   // Bound result size: full-table scans are what blows the Workers CPU budget.
-  const limit = Math.min(Math.max(opts?.limit ?? 100, 1), 200);
+  // (Build-time prerender may request up to a few thousand; runtime callers
+  // pass small explicit limits.)
+  const limit = Math.min(Math.max(opts?.limit ?? 100, 1), 2000);
   const offset = Math.max(opts?.offset ?? 0, 0);
 
   const rows = await db
@@ -60,6 +62,15 @@ export async function getImageById(id: string): Promise<Image | null> {
   const db = (await import("@/db")).db;
   const rows = await db.select().from(images).where(eq(images.id, id)).limit(1);
   return rows[0] ?? null;
+}
+
+export async function listImageIds(limit = 2000): Promise<string[]> {
+  const db = (await import("@/db")).db;
+  const rows = await db
+    .select({ id: images.id })
+    .from(images)
+    .limit(Math.min(Math.max(limit, 1), 5000));
+  return rows.map((r) => r.id);
 }
 
 export async function getRelatedImages(image: Image, limit = 4): Promise<Image[]> {

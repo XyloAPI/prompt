@@ -1,6 +1,8 @@
 import { listImages } from "@/lib/data";
 import type { Category } from "@/db/schema";
 
+export { formatBytes } from "@/lib/format";
+
 const categoryLabels: Record<Category, string> = {
   photo: "Photo",
   illustration: "Illustration",
@@ -90,11 +92,4 @@ export async function getDashboardData(): Promise<DashboardData> {
     .map((img) => ({ title: img.title, value: img.trending ?? 0 }));
 
   return { stats, uploadsByDay, byCategory, topTags, topDownloaded, bucketUsage: [], trending };
-}
-
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }

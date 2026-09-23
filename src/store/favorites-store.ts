@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { Image } from "@/db/schema";
+import type { CardImage } from "@/lib/card-image";
 
 interface FavoritesState {
-  favorites: Image[];
-  toggleFavorite: (image: Image) => void;
+  favorites: CardImage[];
+  toggleFavorite: (image: CardImage) => void;
   isFavorite: (id: string) => boolean;
 }
 

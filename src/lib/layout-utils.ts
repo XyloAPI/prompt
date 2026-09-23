@@ -1,17 +1,17 @@
-import type { Image } from "@/db/schema";
+import type { CardImage } from "@/lib/card-image";
 
 /**
  * Arranges images with diverse aspect ratios (portrait, landscape, square)
  * so that adjacent cards in columns and across rows have dynamic visual contrast,
  * preventing uniform or unbalanced stacking.
  */
-export function arrangeAestheticImages(items: Image[], numColumns: number = 4): Image[] {
+export function arrangeAestheticImages(items: CardImage[], numColumns: number = 4): CardImage[] {
   if (!items || items.length <= 2) return items;
 
   // Classify items by aspect ratio
-  const portraits: Image[] = [];
-  const landscapes: Image[] = [];
-  const squares: Image[] = [];
+  const portraits: CardImage[] = [];
+  const landscapes: CardImage[] = [];
+  const squares: CardImage[] = [];
 
   for (const img of items) {
     const ratio = img.width && img.height ? img.height / img.width : 1.25;
@@ -25,7 +25,7 @@ export function arrangeAestheticImages(items: Image[], numColumns: number = 4): 
   }
 
   // Shuffle pools slightly deterministically
-  const shuffleArray = (arr: Image[]) => {
+  const shuffleArray = (arr: CardImage[]) => {
     return [...arr].sort((a, b) => {
       const hashA = a.id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
       const hashB = b.id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
@@ -38,7 +38,7 @@ export function arrangeAestheticImages(items: Image[], numColumns: number = 4): 
   const sPool = shuffleArray(squares);
 
   // Distribute into virtual columns (greedy height balance + ratio alternation)
-  const columns: Image[][] = Array.from({ length: numColumns }, () => []);
+  const columns: CardImage[][] = Array.from({ length: numColumns }, () => []);
   const colHeights: number[] = Array.from({ length: numColumns }, () => 0);
   const colLastType: ("portrait" | "landscape" | "square" | null)[] = Array.from(
     { length: numColumns },
@@ -58,7 +58,7 @@ export function arrangeAestheticImages(items: Image[], numColumns: number = 4): 
     }
 
     const lastType = colLastType[targetCol];
-    let chosen: Image | undefined;
+    let chosen: CardImage | undefined;
     let chosenType: "portrait" | "landscape" | "square" = "portrait";
 
     // Try to pick a different type than the last item in this column
@@ -109,7 +109,7 @@ export function arrangeAestheticImages(items: Image[], numColumns: number = 4): 
   }
 
   // Flatten columns in column-major order so CSS `columns` renders them in the exact balanced distribution
-  const result: Image[] = [];
+  const result: CardImage[] = [];
   for (const col of columns) {
     result.push(...col);
   }

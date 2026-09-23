@@ -14,18 +14,26 @@ import {
   MagnifyingGlass,
   Warning,
 } from "@phosphor-icons/react";
-import { resolveErrorLogAction, deleteErrorLogAction } from "@/app/admin/actions";
+import { apiDeleteLog, apiGetLogs, apiResolveLog } from "@/lib/admin-api";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export function LogsClient({ initialLogs }: { initialLogs: ErrorLog[] }) {
-  const [logs, setLogs] = React.useState<ErrorLog[]>(initialLogs);
+export function LogsClient() {
+  const [logs, setLogs] = React.useState<ErrorLog[]>([]);
+  const [loading, setLoading] = React.useState(true);
   const [filter, setFilter] = React.useState<"unresolved" | "resolved" | "all">("unresolved");
   const [search, setSearch] = React.useState("");
   const [expandedId, setExpandedId] = React.useState<string | null>(null);
   const [loadingId, setLoadingId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    apiGetLogs()
+      .then(setLogs)
+      .catch(() => toast.error("Failed to load logs."))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filteredLogs = React.useMemo(() => {
     let list = logs;
@@ -58,7 +66,7 @@ export function LogsClient({ initialLogs }: { initialLogs: ErrorLog[] }) {
   const handleResolve = async (id: string) => {
     setLoadingId(id);
     try {
-      const res = await resolveErrorLogAction(id);
+      const res = await apiResolveLog(id);
       if (res.error) {
         toast.error(res.error);
         return;
@@ -78,7 +86,7 @@ export function LogsClient({ initialLogs }: { initialLogs: ErrorLog[] }) {
     if (!confirm("Are you sure you want to delete this log?")) return;
     setLoadingId(id);
     try {
-      const res = await deleteErrorLogAction(id);
+      const res = await apiDeleteLog(id);
       if (res.error) {
         toast.error(res.error);
         return;
@@ -92,6 +100,10 @@ export function LogsClient({ initialLogs }: { initialLogs: ErrorLog[] }) {
       setLoadingId(null);
     }
   };
+
+  if (loading) {
+    return <p className="text-sm text-muted-foreground">Loading logs…</p>;
+  }
 
   return (
     <div className="space-y-4">

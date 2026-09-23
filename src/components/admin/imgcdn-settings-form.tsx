@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { saveImgCdnSettingsAction } from "@/app/admin/actions";
+import { apiSaveImgCdn } from "@/lib/admin-api";
 import { RippleButton, RippleButtonRipples } from "@/components/animate-ui/components/buttons/ripple";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -13,7 +12,6 @@ export function ImgCdnSettingsForm({
 }: {
   initialApiKey: string;
 }) {
-  const router = useRouter();
   const [apiKey, setApiKey] = React.useState(initialApiKey);
   const [saving, setSaving] = React.useState(false);
 
@@ -24,16 +22,13 @@ export function ImgCdnSettingsForm({
     }
     setSaving(true);
     try {
-      const form = new FormData();
-      form.set("apiKey", apiKey.trim());
-
-      const res = await saveImgCdnSettingsAction({}, form);
+      const res = await apiSaveImgCdn({ apiKey: apiKey.trim() });
       if (res?.error) {
         toast.error(res.error);
         return;
       }
       toast.success("ImgCDN settings saved!");
-      router.refresh();
+      window.location.reload();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save settings.");
     } finally {

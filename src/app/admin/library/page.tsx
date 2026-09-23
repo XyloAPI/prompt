@@ -1,28 +1,40 @@
-import Link from "next/link";
+"use client";
+
+import * as React from "react";
 import { ImageSquare, DownloadSimple } from "@phosphor-icons/react/dist/ssr";
-import { listImages } from "@/lib/data";
-import { getAiSettings } from "@/lib/ai-assistant";
+import { apiGetAiSettings, apiGetImages } from "@/lib/admin-api";
+import { DEFAULT_GEMINI_MODEL } from "@/lib/ai-models";
+import type { Image } from "@/db/schema";
 import { LibraryGrid } from "@/components/admin/library-grid";
 import { UploadDialog } from "@/components/admin/upload-dialog";
 import { Card } from "@/components/ui/card";
 
-export const dynamic = "force-dynamic";
+export default function AdminLibraryPage() {
+  const [images, setImages] = React.useState<Image[] | null>(null);
+  const [model, setModel] = React.useState<string>(DEFAULT_GEMINI_MODEL);
 
-export default async function AdminLibraryPage() {
-  const [images, aiSettings] = await Promise.all([
-    listImages({ limit: 200 }),
-    getAiSettings(),
-  ]);
-  const model =
-    aiSettings.provider === "nvidia"
-      ? aiSettings.nvidiaModel
-      : aiSettings.provider === "groq"
-      ? aiSettings.groqModel
-      : aiSettings.provider === "cloudflare"
-      ? aiSettings.cloudflareModel
-      : aiSettings.provider === "mistral"
-      ? aiSettings.mistralModel
-      : aiSettings.geminiModel;
+  React.useEffect(() => {
+    apiGetImages().then(setImages).catch(() => setImages([]));
+    apiGetAiSettings()
+      .then((s) => {
+        setModel(
+          s.provider === "nvidia"
+            ? s.nvidiaModel
+            : s.provider === "groq"
+              ? s.groqModel
+              : s.provider === "cloudflare"
+                ? s.cloudflareModel
+                : s.provider === "mistral"
+                  ? s.mistralModel
+                  : s.geminiModel
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  if (!images) {
+    return <p className="text-sm text-muted-foreground">Loading library…</p>;
+  }
 
   const totalDownloads = images.reduce((s, i) => s + (i.downloads ?? 0), 0);
 

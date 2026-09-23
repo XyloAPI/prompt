@@ -15,6 +15,8 @@ import {
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+
 export default function ImageToPromptPage() {
   const [imageFile, setImageFile] = React.useState<File | null>(null);
   const [imagePreview, setImagePreview] = React.useState<string | null>(null);
@@ -103,7 +105,8 @@ export default function ImageToPromptPage() {
     setPromptResult(null);
 
     try {
-      const response = await fetch("/api/tools/image-to-prompt", {
+      if (!API_URL) throw new Error("Image analysis service is not configured.");
+      const response = await fetch(`${API_URL}/tools/image-to-prompt`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

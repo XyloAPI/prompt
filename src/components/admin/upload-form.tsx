@@ -2,14 +2,15 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
-  generateMetadataAction,
-  generateMetadataFromFileAction,
-  saveImageAction,
-} from "@/app/admin/actions";
-import { ALL_VISION_MODELS, DEFAULT_GEMINI_MODEL } from "@/lib/ai-assistant";
+  apiGenerateMetadata,
+  apiGenerateMetadataFromFile,
+  apiSaveImage,
+  apiUpload,
+  type GeneratedMetadata,
+} from "@/lib/admin-api";
+import { ALL_VISION_MODELS, DEFAULT_GEMINI_MODEL } from "@/lib/ai-models";
 import type { PaletteColor } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { RippleButton, RippleButtonRipples } from "@/components/animate-ui/components/buttons/ripple";
@@ -66,8 +67,6 @@ export function UploadForm({
   model?: string;
   onSuccess?: () => void;
 }) {
-  const router = useRouter();
-
   // Local files for dimensions and instant client previews
   const [masterFile, setMasterFile] = React.useState<File | null>(null);
   const [masterPreviewUrl, setMasterPreviewUrl] = React.useState<string | null>(null);
@@ -106,6 +105,8 @@ export function UploadForm({
   React.useEffect(() => {
     if (masterFile) {
       const url = URL.createObjectURL(masterFile);
+      // Object-URL lifecycle is intentionally tied to file state.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMasterPreviewUrl(url);
 
       const isVideo = masterFile.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(masterFile.name);
@@ -143,6 +144,7 @@ export function UploadForm({
   React.useEffect(() => {
     if (previewFile) {
       const url = URL.createObjectURL(previewFile);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPreviewPreviewUrl(url);
       return () => {
         URL.revokeObjectURL(url);
@@ -179,20 +181,7 @@ export function UploadForm({
     }
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.error || `Upload failed with status ${response.status}`);
-      }
-
-      const res = await response.json();
+      const res = await apiUpload(file);
 
       if (res.error) {
         toast.error(res.error);
@@ -364,7 +353,7 @@ export function UploadForm({
     try {
       if (masterFile) {
         const { base64, mimeType } = await getOptimizedAiImageBase64(masterFile);
-        const res = await generateMetadataFromFileAction({
+        const res = await apiGenerateMetadataFromFile({
           base64,
           mimeType,
           model: aiModel,
@@ -376,7 +365,7 @@ export function UploadForm({
         }
         applyGeneratedMetadata(res);
       } else {
-        const res = await generateMetadataAction({
+        const res = await apiGenerateMetadata({
           url: masterUrl.trim(),
           model: aiModel,
           hint,
@@ -395,7 +384,7 @@ export function UploadForm({
     }
   }
 
-  function applyGeneratedMetadata(res: any) {
+  function applyGeneratedMetadata(res: GeneratedMetadata) {
     setMetadata((m) => ({
       title: res.title ?? m.title,
       description: res.description ?? m.description,
@@ -417,25 +406,23 @@ export function UploadForm({
 
     setSaving(true);
     try {
-      const form = new FormData();
-      form.set("url", masterUrl.trim());
-      form.set("thumbnailUrl", previewUrl.trim() || masterUrl.trim());
-
       const width = masterDimensions?.width ?? 1200;
       const height = masterDimensions?.height ?? 800;
-      form.set("width", String(width));
-      form.set("height", String(height));
-      form.set("sizeBytes", String(masterSizeBytes));
 
-      form.set("category", category);
-      form.set("title", metadata.title.trim());
-      form.set("description", metadata.description.trim());
-      form.set("prompt", metadata.prompt.trim());
-      form.set("tags", metadata.tags.join(", "));
-      form.set("palette", JSON.stringify(metadata.palette));
-      form.set("blurDataUrl", blurDataUrl);
-
-      const res = await saveImageAction({}, form);
+      const res = await apiSaveImage({
+        url: masterUrl.trim(),
+        thumbnailUrl: previewUrl.trim() || masterUrl.trim(),
+        width: String(width),
+        height: String(height),
+        sizeBytes: String(masterSizeBytes),
+        category,
+        title: metadata.title.trim(),
+        description: metadata.description.trim(),
+        prompt: metadata.prompt.trim(),
+        tags: metadata.tags.join(", "),
+        palette: JSON.stringify(metadata.palette),
+        blurDataUrl,
+      });
       if (res?.error) {
         toast.error(res.error);
         return;
@@ -445,9 +432,10 @@ export function UploadForm({
       if (onSuccess) {
         onSuccess();
       } else {
-        router.push("/admin/library");
+        window.location.assign("/admin/library");
+        return;
       }
-      router.refresh();
+      window.location.reload();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save asset.");
     } finally {

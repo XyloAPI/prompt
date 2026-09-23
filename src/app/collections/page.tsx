@@ -11,8 +11,6 @@ export const metadata: Metadata = {
   description: "Visual collections grouped by color and style.",
 };
 
-export const revalidate = 60;
-
 export default async function CollectionsPage() {
   const rawImages = await listImages({ limit: 200 });
   const collections = getCollectionsData(rawImages);

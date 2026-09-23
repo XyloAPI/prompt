@@ -14,7 +14,8 @@ import {
 import { CircleNotch, DownloadSimple, CheckCircle } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { incrementDownloadAction } from "@/app/actions";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export function DownloadButton({
   id,
@@ -53,10 +54,15 @@ export function DownloadButton({
   async function handleConfirmDownload() {
     setDownloading(true);
     try {
-      if (id) {
-        incrementDownloadAction(id)
+      if (id && API_URL) {
+        fetch(`${API_URL}/increment`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        })
+          .then((r) => r.json().catch(() => null))
           .then((res) => {
-            if (res.success) {
+            if (res && typeof res.downloads === "number") {
               window.dispatchEvent(
                 new CustomEvent("image-downloaded", {
                   detail: { id, downloads: res.downloads },

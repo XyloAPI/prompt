@@ -12,6 +12,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { categoriesWithLabels } from "@/lib/mock";
+import { searchImages } from "@/lib/client-search";
 
 type ResImage = {
   id: string;
@@ -40,10 +41,10 @@ export function CommandMenu() {
 
   React.useEffect(() => {
     if (!open) return;
+    // Client-side search over the build-time index (no worker involved).
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-        const data = (await res.json()) as SearchRes;
+        const data = await searchImages(q, 8);
         setResults(data);
       } catch {
         setResults({ images: [], total: 0 });

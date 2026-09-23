@@ -1,9 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { saveStorageProviderAction } from "@/app/admin/actions";
+import { apiSaveStorageProvider } from "@/lib/admin-api";
 import { FileGardenSettingsForm } from "@/components/admin/filegarden-settings-form";
 import { ImgCdnSettingsForm } from "@/components/admin/imgcdn-settings-form";
 import { cn } from "@/lib/utils";
@@ -36,7 +35,6 @@ export function StorageSettingsPanel({
   initialFgPublicId: string;
   initialImgCdnApiKey: string;
 }) {
-  const router = useRouter();
   const [provider, setProvider] = React.useState<ProviderId>(
     (initialProvider as ProviderId) || "filegarden"
   );
@@ -46,15 +44,13 @@ export function StorageSettingsPanel({
     if (id === provider) return;
     setSwitching(true);
     try {
-      const form = new FormData();
-      form.set("provider", id);
-      const res = await saveStorageProviderAction({}, form);
+      const res = await apiSaveStorageProvider(id);
       if (res?.error) {
         toast.error(res.error);
         return;
       }
       setProvider(id);
-      router.refresh();
+      window.location.reload();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to switch provider.");
     } finally {

@@ -1,0 +1,8 @@
+# luminaq-api — tiny dependency-free worker (stays within Free CPU limits).
+name = "luminaq-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Secrets (set via `wrangler secret put`):
+#   TURSO_URL, TURSO_TOKEN, ADMIN_PASSWORD, SESSION_SECRET,
+#   DEPLOY_HOOK_URL (Pages deploy hook), ALLOWED_ORIGIN, COOKIE_DOMAIN

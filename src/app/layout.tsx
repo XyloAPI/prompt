@@ -8,7 +8,6 @@ import { Navbar } from "@/components/navbar";
 import { SiteFooter } from "@/components/site-footer";
 import { Toaster } from "@/components/ui/sonner";
 import { PwaInstallPrompt } from "@/components/pwa-install-prompt";
-import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-display",
@@ -103,15 +102,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             `}
           </Script>
         )}
-        <NuqsAdapter>
-          <ThemeProvider>
-            <Navbar />
-            <main className="flex-1">{children}</main>
-            <SiteFooter />
-            <Toaster position="bottom-right" />
-            <PwaInstallPrompt />
-          </ThemeProvider>
-        </NuqsAdapter>
+        <ThemeProvider>
+          <Navbar />
+          <main className="flex-1">{children}</main>
+          <SiteFooter />
+          <Toaster position="bottom-right" />
+          <PwaInstallPrompt />
+        </ThemeProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `

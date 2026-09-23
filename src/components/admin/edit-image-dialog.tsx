@@ -2,15 +2,15 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Trash, Sparkle, CircleNotch, LinkSimple, Play } from "@phosphor-icons/react";
 import {
-  generateMetadataAction,
-  updateImageAction,
-  deleteImageAction,
-} from "@/app/admin/actions";
-import { ALL_VISION_MODELS, DEFAULT_GEMINI_MODEL } from "@/lib/ai-assistant";
+  apiGenerateMetadata,
+  apiGetImage,
+  apiUpdateImage,
+  apiDeleteImage,
+} from "@/lib/admin-api";
+import { ALL_VISION_MODELS, DEFAULT_GEMINI_MODEL } from "@/lib/ai-models";
 import type { Category, Image as ImageType } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { RippleButton, RippleButtonRipples } from "@/components/animate-ui/components/buttons/ripple";
@@ -59,8 +59,6 @@ export function EditImageDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const router = useRouter();
-  
   // URL States
   const [masterUrl, setMasterUrl] = React.useState(image.url);
   const [previewUrl, setPreviewUrl] = React.useState(image.thumbnailUrl);
@@ -80,18 +78,36 @@ export function EditImageDialog({
 
   React.useEffect(() => {
     if (open) {
-      setMasterUrl(image.url);
-      setPreviewUrl(image.thumbnailUrl);
-      setMetadata({
-        title: image.title,
-        description: image.description ?? "",
-        category: image.category,
-        tags: image.tags ?? [],
-        palette: image.palette ?? [],
-        prompt: image.prompt ?? "",
-      });
+      // List rows are slim (no prompt/palette) — fetch the full row once.
+      apiGetImage(image.id)
+        .then((full) => {
+          setMasterUrl(full.url);
+          setPreviewUrl(full.thumbnailUrl);
+          setMetadata({
+            title: full.title,
+            description: full.description ?? "",
+            category: full.category,
+            tags: full.tags ?? [],
+            palette: full.palette ?? [],
+            prompt: full.prompt ?? "",
+          });
+        })
+        .catch(() => {
+          setMasterUrl(image.url);
+          setPreviewUrl(image.thumbnailUrl);
+          setMetadata({
+            title: image.title,
+            description: image.description ?? "",
+            category: image.category,
+            tags: image.tags ?? [],
+            palette: [],
+            prompt: "",
+          });
+        });
     }
-  }, [open, image]);
+    // Effect intentionally keyed on open + id only (fetches the full row).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, image.id]);
 
   async function handleGenerate() {
     if (!masterUrl.trim()) {
@@ -100,11 +116,11 @@ export function EditImageDialog({
     }
     setGenerating(true);
     try {
-      const res = await generateMetadataAction({
+      const res = await apiGenerateMetadata({
         url: masterUrl.trim(),
         model: aiModel,
       });
-      if ("error" in res && res.error) {
+      if (res.error) {
         toast.error(res.error);
         return;
       }
@@ -131,7 +147,7 @@ export function EditImageDialog({
     }
     setSaving(true);
     try {
-      const res = await updateImageAction({
+      const res = await apiUpdateImage({
         id: image.id,
         title: metadata.title,
         description: metadata.description,
@@ -148,7 +164,7 @@ export function EditImageDialog({
       }
       toast.success("Changes saved");
       onOpenChange(false);
-      router.refresh();
+      window.location.reload();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed.");
     } finally {
@@ -374,7 +390,6 @@ export function EditImageDialog({
 }
 
 function DeleteImageButton({ id, title }: { id: string; title: string }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
@@ -395,9 +410,9 @@ function DeleteImageButton({ id, title }: { id: string; title: string }) {
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={async () => {
-              await deleteImageAction(id);
+              await apiDeleteImage(id);
               setOpen(false);
-              router.refresh();
+              window.location.reload();
             }}
             className="bg-destructive text-white hover:bg-destructive/90"
           >
