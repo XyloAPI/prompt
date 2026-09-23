@@ -70,7 +70,10 @@ export function HomeGallery({ initialImages }: { initialImages: ImageType[] }) {
   }, [initialImages, selectedCategory]);
 
   const displayImages = React.useMemo(() => {
-    return arrangeAestheticImages(filteredImages, 4);
+    // Safety cap: server already limits to 48, but never layout more than
+    // 96 cards even if the prop grows (each card hydrates BlurFade +
+    // ContextMenu + store subscription).
+    return arrangeAestheticImages(filteredImages.slice(0, 96), 4);
   }, [filteredImages]);
 
   return (

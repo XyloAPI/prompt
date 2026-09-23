@@ -19,9 +19,11 @@ type Props = {
   params: Promise<{ id: string }>;
 };
 
+export const revalidate = 60;
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const rawImages = await listImages();
+  const rawImages = await listImages({ limit: 200 });
   const collection = getCollectionDataById(id, rawImages);
 
   if (!collection) {
@@ -62,7 +64,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CollectionDetailPage({ params }: Props) {
   const { id } = await params;
-  const rawImages = await listImages();
+  const rawImages = await listImages({ limit: 200 });
   const collection = getCollectionDataById(id, rawImages);
 
   if (!collection) {

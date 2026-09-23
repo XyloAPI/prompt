@@ -12,6 +12,8 @@ function filterMemory(opts?: {
   category?: Category;
   search?: string;
   sort?: "latest" | "trending" | "downloads";
+  limit?: number;
+  offset?: number;
 }) {
   let list = memoryImages();
   if (opts?.category) list = list.filter((i) => i.category === opts.category);
@@ -31,13 +33,17 @@ function filterMemory(opts?: {
   if (opts?.sort === "trending") list = [...list].sort((a, b) => b.trending - a.trending);
   else if (opts?.sort === "downloads") list = [...list].sort((a, b) => b.downloads - a.downloads);
   else list = [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return list;
+  const offset = Math.max(opts?.offset ?? 0, 0);
+  const limit = Math.min(Math.max(opts?.limit ?? 100, 1), 200);
+  return list.slice(offset, offset + limit);
 }
 
 export async function listImages(opts?: {
   category?: Category;
   search?: string;
   sort?: "latest" | "trending" | "downloads";
+  limit?: number;
+  offset?: number;
 }): Promise<Image[]> {
   if (!await query.hasDb()) return filterMemory(opts);
   try {

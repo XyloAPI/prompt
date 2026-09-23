@@ -17,6 +17,8 @@ export async function getImages(opts?: {
   category?: Category;
   search?: string;
   sort?: "latest" | "trending" | "downloads";
+  limit?: number;
+  offset?: number;
 }): Promise<Image[]> {
   const db = (await import("@/db")).db;
   const conditions = [];
@@ -30,11 +32,17 @@ export async function getImages(opts?: {
         ? desc(images.downloads)
         : desc(images.createdAt);
 
+  // Bound result size: full-table scans are what blows the Workers CPU budget.
+  const limit = Math.min(Math.max(opts?.limit ?? 100, 1), 200);
+  const offset = Math.max(opts?.offset ?? 0, 0);
+
   const rows = await db
     .select()
     .from(images)
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(orderBy);
+    .orderBy(orderBy)
+    .limit(limit)
+    .offset(offset);
 
   return rows;
 }
@@ -57,10 +65,13 @@ export async function getImageById(id: string): Promise<Image | null> {
 export async function getRelatedImages(image: Image, limit = 4): Promise<Image[]> {
   const { rankSimilarImages } = await import("@/lib/similarity");
   const db = (await import("@/db")).db;
+  // Cap candidates: scoring is O(n) JS work inside the worker, so never
+  // pull the whole table just to keep 4-8 items.
   const candidates = await db
     .select()
     .from(images)
-    .where(sql`${images.id} != ${image.id}`);
+    .where(sql`${images.id} != ${image.id}`)
+    .limit(200);
 
   return rankSimilarImages(image, candidates, limit);
 }

@@ -19,6 +19,9 @@ export const metadata: Metadata = {
   description: "Browse the Luminaq visual library.",
 };
 
+// Same reasoning as homepage: bound + cache the gallery render.
+export const revalidate = 60;
+
 type Props = {
   searchParams: Promise<{ category?: string; sort?: string; q?: string }>;
 };
@@ -38,7 +41,7 @@ export default async function GalleryPage({ searchParams }: Props) {
     : undefined;
   const q = sp.q ?? "";
 
-  const rawImages = await listImages({ category, sort, search: q });
+  const rawImages = await listImages({ category, sort, search: q, limit: 120 });
   const images = sort ? rawImages : arrangeAestheticImages(rawImages, 4);
 
   return (

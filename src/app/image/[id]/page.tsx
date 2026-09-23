@@ -22,6 +22,8 @@ const categoryLabels: Record<string, string> = {
   video: "Video",
 };
 
+export const revalidate = 60;
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const image = await imageById(id);

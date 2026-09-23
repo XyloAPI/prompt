@@ -34,7 +34,10 @@ function lastNDays(n: number): string[] {
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const images = await listImages();
+  // Admin-only route: keep the widest window (200 rows) so stats stay
+  // useful while still bounding worker CPU. Promote to COUNT(*) queries
+  // if the library grows past this.
+  const images = await listImages({ limit: 200 });
 
   const stats = {
     images: images.length,

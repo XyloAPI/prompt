@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminLibraryPage() {
   const [images, aiSettings] = await Promise.all([
-    listImages(),
+    listImages({ limit: 200 }),
     getAiSettings(),
   ]);
   const model =

@@ -2,8 +2,12 @@ import { listImages } from "@/lib/data";
 import { BlurFade } from "@/components/magicui/blur-fade";
 import { HomeGallery } from "@/components/home-gallery";
 
+// Cache the homepage HTML at the edge for 60s so every visitor doesn't
+// pay a full Turso scan + RSC render inside the worker (was exceededCpu).
+export const revalidate = 60;
+
 export default async function HomePage() {
-  const rawImages = await listImages();
+  const rawImages = await listImages({ sort: "latest", limit: 48 });
 
   return (
     <div className="space-y-2">

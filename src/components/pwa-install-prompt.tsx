@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { usePathname } from "next/navigation";
 import {
   Drawer,
   DrawerContent,
@@ -23,10 +24,12 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function PwaInstallPrompt() {
+  const pathname = usePathname();
   const [deferredPrompt, setDeferredPrompt] = React.useState<BeforeInstallPromptEvent | null>(null);
   const [isOpen, setIsOpen] = React.useState(false);
 
   React.useEffect(() => {
+    if (pathname.startsWith("/admin")) return;
     // Check if dismissed recently (within 3 days)
     const dismissedAt = localStorage.getItem("pwa_install_dismissed_at");
     if (dismissedAt) {
@@ -71,7 +74,7 @@ export function PwaInstallPrompt() {
     setIsOpen(false);
   };
 
-  if (!deferredPrompt) return null;
+  if (!deferredPrompt || pathname.startsWith("/admin")) return null;
 
   return (
     <Drawer open={isOpen} onOpenChange={setIsOpen}>
