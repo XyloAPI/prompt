@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "npm run build:static",
     "build:static": "tsx --env-file=.env scripts/export-images-json.ts && next build",
+    "build:cf": "tsx scripts/export-images-json.ts && next build",
     "deploy:pages": "wrangler pages deploy out --project-name=prompt",
     "start": "next start",
     "lint": "eslint",
