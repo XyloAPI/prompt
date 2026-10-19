@@ -190,9 +190,19 @@ async function checkSession(req: Request, env: Env): Promise<boolean> {
   return timingSafeEqual(sig, parts[2]);
 }
 
-function sessionCookie(env: Env, token: string, maxAge: number): string {
-  const domain = env.COOKIE_DOMAIN || "luminaq.xyz";
-  return `luminaq_admin=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Domain=${domain}; Max-Age=${maxAge}`;
+function sessionCookie(req: Request, env: Env, token: string, maxAge: number): string {
+  // Default to the request's own registrable domain (no hardcoded hostname —
+  // the site domain may change). Sub-domain requests (www., api.) get the
+  // parent domain so www.site vs site share the admin cookie.
+  const host = new URL(req.url).hostname;
+  let cookie = `luminaq_admin=${token}; Path=/; HttpOnly; Secure; SameSite=Lax`;
+  if (host.includes(".") && !/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+    const labels = host.split(".");
+    const base = labels.length > 2 ? labels.slice(-2).join(".") : host;
+    const domain = env.COOKIE_DOMAIN?.trim() || base;
+    if (domain) cookie += `; Domain=${domain}`;
+  }
+  return `${cookie}; Max-Age=${maxAge}`;
 }
 
 // ---------- http helpers ----------
@@ -215,7 +225,7 @@ async function safeJson(res: Response): Promise<any> {
 
 function corsHeaders(req: Request, env: Env): Record<string, string> {
   const origin = req.headers.get("Origin") ?? "";
-  const allowed = (env.ALLOWED_ORIGIN || "https://luminaq.xyz").split(",").map((s) => s.trim());
+  const allowed = (env.ALLOWED_ORIGIN ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   if (allowed.includes(origin)) {
     return {
       "Access-Control-Allow-Origin": origin,
@@ -536,10 +546,10 @@ const worker = {
           return respond(json({ error: "Incorrect password." }, 401));
         }
         const token = await makeSession(env);
-        return respond(json({ ok: true }, 200, sessionCookie(env, token, 7 * 24 * 3600)));
+        return respond(json({ ok: true }, 200, sessionCookie(req, env, token, 7 * 24 * 3600)));
       }
       if (path === "/logout" && method === "POST") {
-        return respond(json({ ok: true }, 200, sessionCookie(env, "", 0)));
+        return respond(json({ ok: true }, 200, sessionCookie(req, env, "", 0)));
       }
       if (path === "/me") {
         return respond(json({ authed: await checkSession(req, env) }));
