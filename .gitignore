@@ -20,6 +20,10 @@
 # production
 /build
 
+# db backups (full data dumps, never commit)
+/backup/*
+!backup/.gitkeep
+
 # misc
 .DS_Store
 *.pem
