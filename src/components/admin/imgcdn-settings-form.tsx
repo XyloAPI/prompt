@@ -12,17 +12,18 @@ export function ImgCdnSettingsForm({
 }: {
   initialApiKey: string;
 }) {
-  const [apiKey, setApiKey] = React.useState(initialApiKey);
+  const [apiKey, setApiKey] = React.useState("");
+  const apiKeyStored = Boolean(initialApiKey);
   const [saving, setSaving] = React.useState(false);
 
   async function handleSave() {
-    if (!apiKey.trim()) {
+    if (!apiKey.trim() && !apiKeyStored) {
       toast.error("ImgCDN API key is required.");
       return;
     }
     setSaving(true);
     try {
-      const res = await apiSaveImgCdn({ apiKey: apiKey.trim() });
+      const res = await apiSaveImgCdn({ apiKey: apiKey.trim() || "••••••••" });
       if (res?.error) {
         toast.error(res.error);
         return;
@@ -42,10 +43,10 @@ export function ImgCdnSettingsForm({
         <Field>
           <FieldLabel>API Key</FieldLabel>
           <Input
-            type="text"
+            type="password"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Your imgcdn.dev API v1 key"
+            placeholder={apiKeyStored ? "Tersimpan — isi untuk mengganti" : "Your imgcdn.dev API v1 key"}
             spellCheck={false}
             data-1p-ignore
             data-lpignore="true"

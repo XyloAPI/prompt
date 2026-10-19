@@ -53,17 +53,25 @@ export function SettingsForm({
   initialMistralModel?: string;
 }) {
   const [provider, setProvider] = React.useState<AiProvider>(initialProvider || "gemini");
-  const [geminiApiKey, setGeminiApiKey] = React.useState(initialGeminiApiKey);
+  // Secrets are never sent to the browser: the API returns a mask when a key
+  // is stored. The input starts empty and only a freshly typed key is saved.
+  const [geminiApiKey, setGeminiApiKey] = React.useState("");
   const [geminiModel, setGeminiModel] = React.useState(initialGeminiModel);
-  const [nvidiaApiKey, setNvidiaApiKey] = React.useState(initialNvidiaApiKey);
+  const [nvidiaApiKey, setNvidiaApiKey] = React.useState("");
   const [nvidiaModel, setNvidiaModel] = React.useState(initialNvidiaModel);
-  const [groqApiKey, setGroqApiKey] = React.useState(initialGroqApiKey);
+  const [groqApiKey, setGroqApiKey] = React.useState("");
   const [groqModel, setGroqModel] = React.useState(initialGroqModel);
   const [cloudflareAccountId, setCloudflareAccountId] = React.useState(initialCloudflareAccountId || "");
-  const [cloudflareApiToken, setCloudflareApiToken] = React.useState(initialCloudflareApiToken || "");
+  const [cloudflareApiToken, setCloudflareApiToken] = React.useState("");
   const [cloudflareModel, setCloudflareModel] = React.useState(initialCloudflareModel || "");
-  const [mistralApiKey, setMistralApiKey] = React.useState(initialMistralApiKey || "");
+  const [mistralApiKey, setMistralApiKey] = React.useState("");
   const [mistralModel, setMistralModel] = React.useState(initialMistralModel || "");
+
+  const geminiStored = Boolean(initialGeminiApiKey);
+  const nvidiaStored = Boolean(initialNvidiaApiKey);
+  const groqStored = Boolean(initialGroqApiKey);
+  const cloudflareStored = Boolean(initialCloudflareApiToken);
+  const mistralStored = Boolean(initialMistralApiKey);
 
   const [saving, setSaving] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
@@ -78,6 +86,17 @@ export function SettingsForm({
       : provider === "mistral"
       ? mistralApiKey
       : geminiApiKey;
+
+  const activeKeyStored =
+    provider === "nvidia"
+      ? nvidiaStored
+      : provider === "groq"
+      ? groqStored
+      : provider === "cloudflare"
+      ? cloudflareStored
+      : provider === "mistral"
+      ? mistralStored
+      : geminiStored;
 
   async function handleSave() {
     setSaving(true);
@@ -141,10 +160,10 @@ export function SettingsForm({
               <Input
                 id="gemini_api_key_input"
                 name="gemini_api_key"
-                type="text"
+                type="password"
                 value={geminiApiKey}
                 onChange={(e) => setGeminiApiKey(e.target.value)}
-                placeholder="AIzaSy..."
+                placeholder={geminiStored ? "Tersimpan — isi untuk mengganti" : "AIzaSy..."}
                 autoComplete="off"
                 spellCheck={false}
                 data-1p-ignore
@@ -171,10 +190,10 @@ export function SettingsForm({
               <Input
                 id="nvidia_api_key_input"
                 name="nvidia_api_key"
-                type="text"
+                type="password"
                 value={nvidiaApiKey}
                 onChange={(e) => setNvidiaApiKey(e.target.value)}
-                placeholder="nvapi-..."
+                placeholder={nvidiaStored ? "Tersimpan — isi untuk mengganti" : "nvapi-..."}
                 autoComplete="off"
                 spellCheck={false}
                 data-1p-ignore
@@ -201,10 +220,10 @@ export function SettingsForm({
               <Input
                 id="groq_api_key_input"
                 name="groq_api_key"
-                type="text"
+                type="password"
                 value={groqApiKey}
                 onChange={(e) => setGroqApiKey(e.target.value)}
-                placeholder="gsk_..."
+                placeholder={groqStored ? "Tersimpan — isi untuk mengganti" : "gsk_..."}
                 autoComplete="off"
                 spellCheck={false}
                 data-1p-ignore
@@ -244,10 +263,10 @@ export function SettingsForm({
               <Input
                 id="cloudflare_api_token_input"
                 name="cloudflare_api_token"
-                type="text"
+                type="password"
                 value={cloudflareApiToken}
                 onChange={(e) => setCloudflareApiToken(e.target.value)}
-                placeholder="API Token"
+                placeholder={cloudflareStored ? "Tersimpan — isi untuk mengganti" : "API Token"}
                 autoComplete="off"
                 spellCheck={false}
                 data-1p-ignore
@@ -274,10 +293,10 @@ export function SettingsForm({
               <Input
                 id="mistral_api_key_input"
                 name="mistral_api_key"
-                type="text"
+                type="password"
                 value={mistralApiKey}
                 onChange={(e) => setMistralApiKey(e.target.value)}
-                placeholder="Mistral API Key"
+                placeholder={mistralStored ? "Tersimpan — isi untuk mengganti" : "Mistral API Key"}
                 autoComplete="off"
                 spellCheck={false}
                 data-1p-ignore
@@ -312,7 +331,7 @@ export function SettingsForm({
           type="button"
           variant="outline"
           className="rounded-full"
-          disabled={testing || !activeApiKey}
+          disabled={testing || (!activeApiKey && !activeKeyStored)}
           onClick={handleTest}
         >
           {testing

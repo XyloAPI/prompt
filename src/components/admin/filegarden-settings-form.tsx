@@ -17,8 +17,11 @@ export function FileGardenSettingsForm({
   initialPublicId: string;
 }) {
   const [userId, setUserId] = React.useState(initialUserId);
-  const [authCookie, setAuthCookie] = React.useState(initialAuthCookie);
+  // The stored auth cookie is never sent to the browser; the API returns a
+  // mask. An empty field keeps the stored cookie.
+  const [authCookie, setAuthCookie] = React.useState("");
   const [publicId, setPublicId] = React.useState(initialPublicId);
+  const authCookieStored = Boolean(initialAuthCookie);
   const [saving, setSaving] = React.useState(false);
 
   async function handleSave() {
@@ -82,10 +85,10 @@ export function FileGardenSettingsForm({
         <Field>
           <FieldLabel>Auth Cookie Value</FieldLabel>
           <Input
-            type="text"
+            type="password"
             value={authCookie}
             onChange={(e) => setAuthCookie(e.target.value)}
-            placeholder="auth=..."
+            placeholder={authCookieStored ? "Tersimpan — isi untuk mengganti" : "auth=..."}
             spellCheck={false}
             data-1p-ignore
             data-lpignore="true"

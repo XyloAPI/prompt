@@ -29,7 +29,8 @@ type HranaValue =
   | { type: "text"; value: string }
   | { type: "blob"; value: string };
 
-function decodeValue(v: HranaValue): unknown {
+function decodeValue(v: HranaValue | undefined): unknown {
+  if (v == null) return null;
   if (v.type === "null") return null;
   if (v.type === "integer") return Number(v.value);
   if (v.type === "float") return v.value;
@@ -44,13 +45,16 @@ function encodeArg(v: unknown): HranaValue | string | number | null {
   return { type: "text", value: String(v) };
 }
 
-type HranaRow = { values: HranaValue[] };
+type HranaRow = { values?: HranaValue[] } | HranaValue[];
 
 async function pipeline(
   env: Env,
   stmts: { sql: string; args?: unknown[] }[]
 ): Promise<{ cols: string[]; rows: Record<string, unknown>[] }[]> {
-  const url = env.TURSO_URL.replace(/\/$/, "") + "/v2/pipeline";
+  // Turso's HTTP API lives on https://; a libsql:// URL (as stored in
+  // DATABASE_URL for the libsql driver) is not loadable by fetch().
+  const base = env.TURSO_URL.replace(/\/$/, "").replace(/^libsql:\/\//i, "https://");
+  const url = base + "/v2/pipeline";
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -75,8 +79,11 @@ async function pipeline(
     const cols = r.response.result.cols.map((c) => c.name);
     const rows = r.response.result.rows.map((row) => {
       const obj: Record<string, unknown> = {};
+      // Turso HTTP returns each row as an array of values; the stream format
+      // wraps them in { values: [...] }.
+      const values = Array.isArray(row) ? row : row.values;
       cols.forEach((c, i) => {
-        obj[c] = decodeValue(row.values[i]);
+        obj[c] = decodeValue(values?.[i]);
       });
       return obj;
     });
@@ -152,6 +159,33 @@ async function setSetting(env: Env, key: string, value: string): Promise<void> {
     key,
     value,
   ]);
+}
+
+// ---------- settings helpers ----------
+
+// Secrets are never sent to the browser. The API only reports "a value is
+// stored" via this mask; saves keep the stored value unless the client
+// sends a brand-new one.
+const MASK = "••••••••";
+
+const SECRET_SETTING_KEYS = new Set([
+  "gemini_api_key",
+  "nvidia_api_key",
+  "groq_api_key",
+  "mistral_api_key",
+  "cloudflare_api_token",
+  "filegarden_auth_cookie",
+  "imgcdn_api_key",
+]);
+
+function maskIfSecret(key: string, value: string): string {
+  if (!SECRET_SETTING_KEYS.has(key)) return value;
+  return value ? MASK : "";
+}
+
+function isSecretUpdate(key: string, value: string): boolean {
+  const v = value.trim();
+  return SECRET_SETTING_KEYS.has(key) && v.length > 0 && v !== MASK;
 }
 
 // ---------- auth (HMAC session cookie) ----------
@@ -717,8 +751,9 @@ const worker = {
           mistral_api_key: "mistralApiKey", mistral_model: "mistralModel",
         };
         for (const r of sets.rows) {
-          const k = map[String(r.key)];
-          if (k && String(r.value ?? "")) s[k] = String(r.value);
+          const rawKey = String(r.key);
+          const k = map[rawKey];
+          if (k && String(r.value ?? "")) s[k] = maskIfSecret(rawKey, String(r.value));
         }
         return respond(json(s));
       }
@@ -726,13 +761,15 @@ const worker = {
         const b = (await req.json()) as Record<string, string>;
         const pairs: [string, string][] = [
           ["ai_provider", (b.provider ?? "gemini").trim()],
-          ["gemini_api_key", (b.geminiApiKey ?? "").trim()],
-          ["nvidia_api_key", (b.nvidiaApiKey ?? "").trim()],
-          ["groq_api_key", (b.groqApiKey ?? "").trim()],
           ["cloudflare_account_id", (b.cloudflareAccountId ?? "").trim()],
-          ["cloudflare_api_token", (b.cloudflareApiToken ?? "").trim()],
-          ["mistral_api_key", (b.mistralApiKey ?? "").trim()],
         ];
+        // Secret values are only written when a new one is supplied; an empty
+        // or masked field means "keep the stored value".
+        if (isSecretUpdate("gemini_api_key", b.geminiApiKey ?? "")) pairs.push(["gemini_api_key", b.geminiApiKey.trim()]);
+        if (isSecretUpdate("nvidia_api_key", b.nvidiaApiKey ?? "")) pairs.push(["nvidia_api_key", b.nvidiaApiKey.trim()]);
+        if (isSecretUpdate("groq_api_key", b.groqApiKey ?? "")) pairs.push(["groq_api_key", b.groqApiKey.trim()]);
+        if (isSecretUpdate("cloudflare_api_token", b.cloudflareApiToken ?? "")) pairs.push(["cloudflare_api_token", b.cloudflareApiToken.trim()]);
+        if (isSecretUpdate("mistral_api_key", b.mistralApiKey ?? "")) pairs.push(["mistral_api_key", b.mistralApiKey.trim()]);
         if ((b.geminiModel ?? "").trim()) pairs.push(["gemini_model", b.geminiModel.trim()]);
         if ((b.nvidiaModel ?? "").trim()) pairs.push(["nvidia_model", b.nvidiaModel.trim()]);
         if ((b.groqModel ?? "").trim()) pairs.push(["groq_model", b.groqModel.trim()]);
@@ -759,8 +796,9 @@ const worker = {
           filegarden_public_id: "fgPublicId", imgcdn_api_key: "imgCdnApiKey",
         };
         for (const r of sets.rows) {
-          const k = map[String(r.key)];
-          if (k) s[k] = String(r.value ?? "");
+          const rawKey = String(r.key);
+          const k = map[rawKey];
+          if (k) s[k] = maskIfSecret(rawKey, String(r.value ?? ""));
         }
         return respond(json(s));
       }
@@ -772,17 +810,21 @@ const worker = {
       if (path === "/settings/storage/filegarden" && method === "PUT") {
         const b = (await req.json()) as { userId?: string; authCookie?: string; publicId?: string };
         if (!(b.userId ?? "").trim()) return respond(json({ error: "Storage User ID is required." }, 400));
-        await pipeline(env, [
+        const stmts: { sql: string; args?: unknown[] }[] = [
           { sql: "INSERT INTO settings (key, value, updated_at) VALUES ('filegarden_user_id', ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at", args: [(b.userId ?? "").trim().toLowerCase()] },
-          { sql: "INSERT INTO settings (key, value, updated_at) VALUES ('filegarden_auth_cookie', ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at", args: [(b.authCookie ?? "").trim()] },
           { sql: "INSERT INTO settings (key, value, updated_at) VALUES ('filegarden_public_id', ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at", args: [(b.publicId ?? "").trim()] },
-        ]);
+        ];
+        if (isSecretUpdate("filegarden_auth_cookie", b.authCookie ?? "")) {
+          stmts.push({ sql: "INSERT INTO settings (key, value, updated_at) VALUES ('filegarden_auth_cookie', ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at", args: [(b.authCookie ?? "").trim()] });
+        }
+        await pipeline(env, stmts);
         return respond(json({ ok: true }));
       }
       if (path === "/settings/storage/imgcdn" && method === "PUT") {
         const b = (await req.json()) as { apiKey?: string };
-        if (!(b.apiKey ?? "").trim()) return respond(json({ error: "ImgCDN API key is required." }, 400));
-        await setSetting(env, "imgcdn_api_key", (b.apiKey ?? "").trim());
+        const incoming = (b.apiKey ?? "").trim();
+        if (!incoming) return respond(json({ error: "ImgCDN API key is required." }, 400));
+        if (incoming !== MASK) await setSetting(env, "imgcdn_api_key", incoming);
         return respond(json({ ok: true }));
       }
 
