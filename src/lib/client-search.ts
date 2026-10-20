@@ -22,13 +22,20 @@ let fuse: Fuse<IndexImage> | null = null;
 
 export function loadImageIndex(): Promise<IndexImage[]> {
   if (!indexPromise) {
-    indexPromise = fetch("/data/search-index.json")
+    const api = process.env.NEXT_PUBLIC_API_URL ?? "";
+    // Live list from the API so assets uploaded a second ago are included.
+    indexPromise = fetch(`${api}/library`, { cache: "no-store" })
       .then((r) => {
-        if (!r.ok) throw new Error(`index ${r.status}`);
+        if (!r.ok) throw new Error(`library ${r.status}`);
         return r.json() as Promise<{ images: IndexImage[] }>;
       })
       .then((d) => d.images ?? [])
-      .catch(() => []);
+      .catch(() =>
+        fetch("/data/search-index.json")
+          .then((r) => r.json() as Promise<{ images: IndexImage[] }>)
+          .then((d) => d.images ?? [])
+          .catch(() => [])
+      );
   }
   return indexPromise;
 }

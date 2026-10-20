@@ -9,16 +9,29 @@ import { ImageDetailLive } from "@/components/image-detail-live";
  * The site is a static export: every asset page is prerendered at build
  * time. Assets uploaded after the last deploy have no page yet, so this
  * fallback resolves /image/<id> (and /video/<id>) at runtime from the API.
+ *
+ * The static markup stays neutral (loader) so a fresh asset never flashes
+ * "404 wandered off" before the client resolves it.
  */
 export default function NotFound() {
   const [assetId, setAssetId] = React.useState<string | null>(null);
+  const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
     const match = window.location.pathname.match(/^\/(?:image|video)\/([^/]+)\/?$/);
     if (match) setAssetId(decodeURIComponent(match[1]));
+    setMounted(true);
   }, []);
 
   if (assetId) return <ImageDetailLive id={assetId} />;
+
+  if (!mounted) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-4 text-center">
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center px-4 text-center">

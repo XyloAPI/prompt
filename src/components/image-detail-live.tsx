@@ -42,6 +42,14 @@ export function ImageDetailLive({ id }: { id: string }) {
 
   React.useEffect(() => {
     let cancelled = false;
+    // The Function embeds the asset for live pages -> render instantly.
+    const embedded = (window as unknown as { __LIVE_ASSET__?: LiveImage }).__LIVE_ASSET__;
+    if (embedded && embedded.id === id) {
+      setImage(embedded);
+      setStatus("ok");
+      document.title = `${embedded.title} · Luminaq`;
+      return;
+    }
     (async () => {
       try {
         const res = await fetch(`${API_URL}/images/${encodeURIComponent(id)}`);

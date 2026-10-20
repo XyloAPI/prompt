@@ -10,7 +10,7 @@
  * one small Turso round-trip (network wait doesn't count toward CPU).
  */
 
-type Env = {
+export type Env = {
   TURSO_URL: string;
   TURSO_TOKEN: string;
   ADMIN_PASSWORD: string;
@@ -621,6 +621,14 @@ const worker = {
         return respond(json(await res.json()));
       }
 
+      // ----- public: live library (newest assets included, no rebuild) -----
+      if (path === "/library" && method === "GET") {
+        const images = await fetchLibrary(env);
+        const res = json({ images });
+        res.headers.set("Cache-Control", "no-store");
+        return respond(res);
+      }
+
       // ----- public: single asset read (used by the 404 fallback for assets
       // uploaded after the last static build) -----
       const publicImageMatch = path.match(/^\/images\/([^/]+)$/);
@@ -975,3 +983,34 @@ const worker = {
 };
 
 export default worker;
+
+// ---------- helpers reused by the Pages Functions ----------
+
+export type PublicImage = ReturnType<typeof toImage>;
+
+export async function fetchImageById(env: Env, id: string): Promise<PublicImage | null> {
+  const rows = await q(env, `SELECT ${IMAGE_COLS} FROM images WHERE id = ? LIMIT 1`, [id]);
+  return rows.length ? toImage(rows[0]) : null;
+}
+
+export async function fetchLibrary(env: Env): Promise<Record<string, unknown>[]> {
+  const rows = await q(
+    env,
+    "SELECT id,title,description,category,tags,thumbnail_url,url,width,height,downloads,trending,is_daily_pick,created_at FROM images ORDER BY created_at DESC LIMIT 5000"
+  );
+  return rows.map((r) => ({
+    id: String(r.id),
+    title: String(r.title ?? ""),
+    description: r.description == null ? null : String(r.description),
+    category: String(r.category ?? "photo"),
+    tags: parseJsonArray(r.tags),
+    thumbnailUrl: String(r.thumbnail_url ?? r.url ?? ""),
+    url: String(r.url ?? ""),
+    width: r.width == null ? null : Number(r.width),
+    height: r.height == null ? null : Number(r.height),
+    downloads: Number(r.downloads ?? 0),
+    trending: Number(r.trending ?? 0),
+    isDailyPick: r.is_daily_pick === 1 || r.is_daily_pick === true,
+    createdAt: String(r.created_at ?? ""),
+  }));
+}
