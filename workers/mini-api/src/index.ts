@@ -621,6 +621,15 @@ const worker = {
         return respond(json(await res.json()));
       }
 
+      // ----- public: single asset read (used by the 404 fallback for assets
+      // uploaded after the last static build) -----
+      const publicImageMatch = path.match(/^\/images\/([^/]+)$/);
+      if (publicImageMatch && method === "GET") {
+        const rows = await q(env, `SELECT ${IMAGE_COLS} FROM images WHERE id = ? LIMIT 1`, [decodeURIComponent(publicImageMatch[1])]);
+        if (!rows.length) return respond(json({ error: "Not found." }, 404));
+        return respond(json(toImage(rows[0])));
+      }
+
       // ----- everything below requires admin session -----
       if (!(await checkSession(req, env))) {
         return respond(json({ error: "Unauthorized." }, 401));
@@ -669,11 +678,6 @@ const worker = {
         return respond(json(rows.map(toImage)));
       }
       const imageIdMatch = path.match(/^\/images\/([^/]+)$/);
-      if (imageIdMatch && method === "GET") {
-        const rows = await q(env, `SELECT ${IMAGE_COLS} FROM images WHERE id = ? LIMIT 1`, [decodeURIComponent(imageIdMatch[1])]);
-        if (!rows.length) return respond(json({ error: "Not found." }, 404));
-        return respond(json(toImage(rows[0])));
-      }
       if (path === "/images" && method === "POST") {
         const b = (await req.json()) as Record<string, string>;
         const title = (b.title ?? "").trim();
