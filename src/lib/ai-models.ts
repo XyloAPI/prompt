@@ -9,14 +9,16 @@ export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash";
 export const DEFAULT_NVIDIA_MODEL = "meta/llama-3.2-90b-vision-instruct";
 export const DEFAULT_GROQ_MODEL = "qwen/qwen3.6-27b";
 export const DEFAULT_CLOUDFLARE_MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
-export const DEFAULT_MISTRAL_MODEL = "pixtral-12b-2409";
+export const DEFAULT_MISTRAL_MODEL = "ministral-14b-2512";
 
 export const GEMINI_VISION_MODELS = [
-  { value: "gemini-3.5-flash", label: "Gemini 3.5 Flash (Recommended)" },
+  { value: "gemini-3.8-flash", label: "Gemini 3.8 Flash (Recommended)" },
+  { value: "gemini-3.6-flash", label: "Gemini 3.6 Flash" },
+  { value: "gemini-3.5-flash", label: "Gemini 3.5 Flash" },
   { value: "gemini-3.5-flash-lite", label: "Gemini 3.5 Flash Lite" },
-  { value: "gemini-3-flash-preview", label: "Gemini 3 Flash Preview" },
-  { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-  { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+  { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (Preview)" },
+  { value: "gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite" },
+  { value: "gemini-3-flash-preview", label: "Gemini 3 Flash (Preview)" },
 ];
 
 export const NVIDIA_VISION_MODELS = [
@@ -45,12 +47,11 @@ export const CLOUDFLARE_VISION_MODELS = [
 ];
 
 export const MISTRAL_VISION_MODELS = [
-  { value: "pixtral-12b-2409", label: "Pixtral 12B" },
+  { value: "ministral-14b-2512", label: "Ministral 3 14B" },
+  { value: "ministral-8b-2512", label: "Ministral 3 8B" },
+  { value: "ministral-3b-2512", label: "Ministral 3 3B" },
   { value: "mistral-large-latest", label: "Mistral Large (Multimodal)" },
   { value: "mistral-medium-latest", label: "Mistral Medium (Multimodal)" },
-  { value: "ministral-3b-latest", label: "Ministral 3B (Multimodal)" },
-  { value: "ministral-8b-latest", label: "Ministral 8B (Multimodal)" },
-  { value: "ministral-14b-latest", label: "Ministral 14B (Multimodal)" },
 ];
 
 export const ALL_VISION_MODELS = [

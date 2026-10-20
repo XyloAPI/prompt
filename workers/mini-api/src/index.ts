@@ -434,7 +434,7 @@ async function analyzeWithCloudflare(bytes: Uint8Array, model: string, accountId
 }
 
 const MODEL_LISTS: Record<string, string[]> = {
-  gemini: ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3-flash-preview", "gemini-2.5-flash", "gemini-2.5-pro"],
+  gemini: ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite", "gemini-3-flash-preview"],
   groq: ["qwen/qwen3.6-27b"],
 };
 
@@ -477,7 +477,7 @@ async function analyzeImage(
     return analyzeWithCloudflare(bytes, mo || s.cloudflare_model || "@cf/meta/llama-3.2-11b-vision-instruct", s.cloudflare_account_id, s.cloudflare_api_token, hint);
   }
   if (provider === "mistral") {
-    return analyzeOpenAiCompatible("Mistral", "https://api.mistral.ai/v1/chat/completions", s.mistral_api_key, mo || s.mistral_model || "pixtral-12b-2409",
+    return analyzeOpenAiCompatible("Mistral", "https://api.mistral.ai/v1/chat/completions", s.mistral_api_key, mo || s.mistral_model || "ministral-14b-2512",
       { messages: openAiImageMessages(CURATOR_PROMPT(hint, false), mimeType, bytes), response_format: { type: "json_object" } },
       (b) => (b.choices as { message?: { content?: string } }[])?.[0]?.message?.content ?? "");
   }
@@ -754,7 +754,7 @@ const worker = {
           nvidiaApiKey: "", nvidiaModel: "meta/llama-3.2-90b-vision-instruct",
           groqApiKey: "", groqModel: "qwen/qwen3.6-27b",
           cloudflareAccountId: "", cloudflareApiToken: "", cloudflareModel: "@cf/meta/llama-3.2-11b-vision-instruct",
-          mistralApiKey: "", mistralModel: "pixtral-12b-2409",
+          mistralApiKey: "", mistralModel: "ministral-14b-2512",
         };
         const map: Record<string, string> = {
           ai_provider: "provider", gemini_api_key: "geminiApiKey", gemini_model: "geminiModel",
