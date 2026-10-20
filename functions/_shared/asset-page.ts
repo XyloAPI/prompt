@@ -1,5 +1,5 @@
 /**
- * Shared handler for the live asset pages (/image/<id>, /video/<id>).
+ * Shared handler for the live asset pages (/image/<id>, /video/<id>, /sfx/<id>).
  *
  * Assets are hosted immediately after upload — no rebuild. The function:
  *   1. serves the prerendered page when it exists (fast path, static asset),
@@ -53,6 +53,7 @@ export async function handleAssetPage(ctx: Ctx): Promise<Response> {
   const title = escapeHtml(image.title);
   const description = escapeHtml(image.description || `Browse and download "${image.title}" on Luminaq.`);
   const shareImg = escapeHtml(image.thumbnailUrl || image.url);
+  const isAudio = image.category === "sfx";
 
   const page = html
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${title} · Luminaq</title>`)
@@ -61,7 +62,7 @@ export async function handleAssetPage(ctx: Ctx): Promise<Response> {
       `<meta name="description" content="${description}" />
 <meta property="og:title" content="${title}" />
 <meta property="og:description" content="${description}" />
-<meta property="og:image" content="${shareImg}" />
+${isAudio ? "" : `<meta property="og:image" content="${shareImg}" />`}
 <meta property="og:type" content="website" />
 <script>window.__LIVE_ASSET__=${JSON.stringify(image).replace(/</g, "\\u003c")};</script>
 </head>`

@@ -8,6 +8,7 @@ const categoryLabels: Record<Category, string> = {
   illustration: "Illustration",
   "3d": "3D",
   video: "Video",
+  sfx: "SFX",
 };
 
 export type DashboardData = {

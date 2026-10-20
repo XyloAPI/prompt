@@ -1,10 +1,25 @@
 import { listImages } from "@/lib/data";
 import { BlurFade } from "@/components/magicui/blur-fade";
 import { HomeGallery } from "@/components/home-gallery";
+import type { Category, Image as ImageType } from "@/db/schema";
+
+const WHEEL_CATEGORIES: Category[] = ["photo", "illustration", "3d", "video", "sfx"];
 
 // Static export: prerendered once at build time (no worker, no CPU limit).
 export default async function HomePage() {
-  const rawImages = await listImages({ sort: "latest", limit: 48 });
+  const [latest, ...perCategory] = await Promise.all([
+    listImages({ sort: "latest", limit: 48 }),
+    ...WHEEL_CATEGORIES.map((category) =>
+      listImages({ category, sort: "latest", limit: 24 })
+    ),
+  ]);
+
+  // Each wheel category gets its own list, otherwise rare categories
+  // (e.g. SFX) never show up in the filtered grid.
+  const categoryImages = {} as Record<Category, ImageType[]>;
+  WHEEL_CATEGORIES.forEach((category, index) => {
+    categoryImages[category] = perCategory[index];
+  });
 
   return (
     <div className="space-y-2">
@@ -23,7 +38,7 @@ export default async function HomePage() {
       </section>
 
       {/* OptionWheel Category & Masonry Gallery */}
-      <HomeGallery initialImages={rawImages} />
+      <HomeGallery initialImages={latest} categoryImages={categoryImages} />
     </div>
   );
 }

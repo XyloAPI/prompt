@@ -7,15 +7,36 @@ import { ImageCard } from "@/components/image-card";
 import { Masonry, MasonryItem } from "@/components/masonry";
 import { BlurFade } from "@/components/magicui/blur-fade";
 import { arrangeAestheticImages } from "@/lib/layout-utils";
+import { loadHomeFeed, type HomeFeed } from "@/lib/live-home";
+import type { CardImage } from "@/lib/card-image";
 import type { Image as ImageType, Category } from "@/db/schema";
 import { ArrowUpRight } from "@phosphor-icons/react";
 
-const CATEGORY_ITEMS = ["All Assets", "Photos", "Illustrations", "3D Renders", "Videos"];
+const CATEGORY_ITEMS = ["All Assets", "Photos", "Illustrations", "3D Renders", "Videos", "SFX"];
 
-const CATEGORY_VALUES: (Category | "")[] = ["", "photo", "illustration", "3d", "video"];
+const CATEGORY_VALUES: (Category | "")[] = ["", "photo", "illustration", "3d", "video", "sfx"];
 
-export function HomeGallery({ initialImages }: { initialImages: ImageType[] }) {
+export function HomeGallery({
+  initialImages,
+  categoryImages,
+}: {
+  initialImages: ImageType[];
+  categoryImages?: Partial<Record<Category, ImageType[]>>;
+}) {
   const [selectedIndex, setSelectedIndex] = React.useState(0);
+  // Live feed from the API so assets uploaded a second ago are included
+  // (the prerendered props are only the first paint / fallback).
+  const [liveFeed, setLiveFeed] = React.useState<HomeFeed | null>(null);
+
+  React.useEffect(() => {
+    let live = true;
+    void loadHomeFeed().then((feed) => {
+      if (live && feed) setLiveFeed(feed);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   // Restore category from URL or sessionStorage on mount & popstate
   React.useEffect(() => {
@@ -64,10 +85,16 @@ export function HomeGallery({ initialImages }: { initialImages: ImageType[] }) {
 
   const selectedCategory = CATEGORY_VALUES[selectedIndex];
 
-  const filteredImages = React.useMemo(() => {
-    if (!selectedCategory) return initialImages;
+  const filteredImages = React.useMemo<CardImage[]>(() => {
+    if (!selectedCategory) {
+      return liveFeed?.images.length ? liveFeed.images : initialImages;
+    }
+    const live = liveFeed?.byCategory?.[selectedCategory];
+    if (live && live.length > 0) return live;
+    const dedicated = categoryImages?.[selectedCategory];
+    if (dedicated && dedicated.length > 0) return dedicated;
     return initialImages.filter((img) => img.category === selectedCategory);
-  }, [initialImages, selectedCategory]);
+  }, [initialImages, categoryImages, selectedCategory, liveFeed]);
 
   const displayImages = React.useMemo(() => {
     // Safety cap: server already limits to 48, but never layout more than

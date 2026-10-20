@@ -6,5 +6,6 @@ export function categoriesWithLabels(): { value: Category; label: string }[] {
     { value: "illustration", label: "Illustrations" },
     { value: "3d", label: "3D" },
     { value: "video", label: "Videos" },
+    { value: "sfx", label: "SFX" },
   ];
 }

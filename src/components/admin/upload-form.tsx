@@ -6,11 +6,13 @@ import { toast } from "sonner";
 import {
   apiGenerateMetadata,
   apiGenerateMetadataFromFile,
+  apiGetStorageSettings,
   apiSaveImage,
   apiUpload,
   type GeneratedMetadata,
 } from "@/lib/admin-api";
 import { ALL_VISION_MODELS, DEFAULT_GEMINI_MODEL } from "@/lib/ai-models";
+import { AUDIO_ACCEPT, audioFormat, isAudioAsset, isAudioFile } from "@/lib/media";
 import type { PaletteColor } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { RippleButton, RippleButtonRipples } from "@/components/animate-ui/components/buttons/ripple";
@@ -19,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { FormSelect } from "@/components/admin/form-select";
 import { ColorPalette } from "@/components/color-palette";
-import { Sparkle, CircleNotch, UploadSimple, ImageSquare, LinkSimple, Info, CloudArrowUp, CheckCircle } from "@phosphor-icons/react";
+import { Sparkle, CircleNotch, UploadSimple, ImageSquare, LinkSimple, Info, CloudArrowUp, CheckCircle, SpeakerHigh } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { compressImage } from "@/lib/compressor";
 
@@ -34,7 +36,7 @@ type Metadata = {
 export async function generateBlurDataUrl(file: File): Promise<string> {
   return new Promise((resolve) => {
     const isVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name);
-    if (isVideo) {
+    if (isVideo || isAudioFile(file)) {
       return resolve("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=");
     }
     const reader = new FileReader();
@@ -109,8 +111,12 @@ export function UploadForm({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setMasterPreviewUrl(url);
 
-      const isVideo = masterFile.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(masterFile.name);
-      if (isVideo) {
+      const isAudio = isAudioFile(masterFile);
+      const isVideo = !isAudio && (masterFile.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(masterFile.name));
+      if (isAudio) {
+        setCategory("sfx");
+        setMasterDimensions({ width: 1200, height: 675 });
+      } else if (isVideo) {
         setCategory("video");
         const video = document.createElement("video");
         video.src = url;
@@ -157,8 +163,8 @@ export function UploadForm({
   async function selectFile(slot: "master" | "preview", file: File | undefined) {
     if (!file) return;
 
-    const isVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name);
-    if (slot === "master" && !isVideo) {
+    const isAudio = isAudioFile(file);
+    if (slot === "master" && file.type.startsWith("image/")) {
       compressImage(file)
         .then((compressedFile) => {
           selectFile("preview", compressedFile);
@@ -172,9 +178,24 @@ export function UploadForm({
       setUploadingMaster(true);
       setMasterFile(file);
       setMasterSizeBytes(file.size);
-      generateBlurDataUrl(file)
-        .then((bUrl) => setBlurDataUrl(bUrl))
-        .catch((err) => console.error("Blur hash generation failed:", err));
+      if (isAudio) {
+        setCategory("sfx");
+        setMasterDimensions({ width: 1200, height: 675 });
+        setPreviewFile(null);
+        setPreviewUrl("");
+        setBlurDataUrl("");
+        apiGetStorageSettings()
+          .then((settings) => {
+            if (settings.storageProvider === "imgcdn") {
+              toast.warning("ImgCDN is image-only. Switch to File Garden in Settings to upload audio.");
+            }
+          })
+          .catch(() => {});
+      } else {
+        generateBlurDataUrl(file)
+          .then((bUrl) => setBlurDataUrl(bUrl))
+          .catch((err) => console.error("Blur hash generation failed:", err));
+      }
     } else {
       setUploadingPreview(true);
       setPreviewFile(file);
@@ -209,6 +230,22 @@ export function UploadForm({
   }
 
   async function getOptimizedAiImageBase64(file: File, maxDim = 1024): Promise<{ base64: string; mimeType: string }> {
+    if (isAudioFile(file)) {
+      if (file.size > 10 * 1024 * 1024) {
+        throw new Error("Audio is too large for AI analysis (max 10MB). Please add metadata manually.");
+      }
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = String(reader.result ?? "");
+          const base64 = dataUrl.includes(",") ? dataUrl.split(",").pop() ?? "" : dataUrl;
+          resolve({ base64, mimeType: file.type || "audio/mpeg" });
+        };
+        reader.onerror = () => reject(new Error("Could not read the audio file."));
+        reader.readAsDataURL(file);
+      });
+    }
+
     const isVideo = file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name);
 
     if (isVideo) {
@@ -406,12 +443,12 @@ export function UploadForm({
 
     setSaving(true);
     try {
-      const width = masterDimensions?.width ?? 1200;
-      const height = masterDimensions?.height ?? 800;
+      const width = isAudio ? 1200 : masterDimensions?.width ?? 1200;
+      const height = isAudio ? 675 : masterDimensions?.height ?? 800;
 
       const res = await apiSaveImage({
         url: masterUrl.trim(),
-        thumbnailUrl: previewUrl.trim() || masterUrl.trim(),
+        thumbnailUrl: isAudio ? previewUrl.trim() : previewUrl.trim() || masterUrl.trim(),
         width: String(width),
         height: String(height),
         sizeBytes: String(masterSizeBytes),
@@ -421,7 +458,7 @@ export function UploadForm({
         prompt: metadata.prompt.trim(),
         tags: metadata.tags.join(", "),
         palette: JSON.stringify(metadata.palette),
-        blurDataUrl,
+        blurDataUrl: isAudio ? "" : blurDataUrl,
       });
       if (res?.error) {
         toast.error(res.error);
@@ -443,7 +480,14 @@ export function UploadForm({
     }
   }
 
-  const isVideo = category === "video" || (masterFile && (masterFile.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(masterFile.name)));
+  const isAudio =
+    category === "sfx" ||
+    (masterFile ? isAudioFile(masterFile) : false) ||
+    isAudioAsset(null, masterUrl);
+  const isVideo =
+    !isAudio &&
+    (category === "video" ||
+      (masterFile && (masterFile.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(masterFile.name))));
 
   return (
     <div className="space-y-6">
@@ -452,24 +496,28 @@ export function UploadForm({
         {[
           {
             slot: "master" as const,
-            label: isVideo ? "Master Video Asset" : "Master Asset",
-            sub: "Upload to Storage",
+            label: isAudio ? "Master Audio Asset" : isVideo ? "Master Video Asset" : "Master Asset",
+            sub: isAudio ? "Upload MP3, WAV, OGG…" : "Upload to Storage",
             ref: masterInputRef,
             file: masterFile,
             url: masterPreviewUrl,
             loading: uploadingMaster,
             value: masterUrl,
           },
-          {
-            slot: "preview" as const,
-            label: "Preview Asset",
-            sub: "Upload preview to Storage",
-            ref: previewInputRef,
-            file: previewFile,
-            url: previewPreviewUrl,
-            loading: uploadingPreview,
-            value: previewUrl,
-          },
+          ...(isAudio
+            ? []
+            : [
+                {
+                  slot: "preview" as const,
+                  label: "Preview Asset",
+                  sub: "Upload preview to Storage",
+                  ref: previewInputRef,
+                  file: previewFile,
+                  url: previewPreviewUrl,
+                  loading: uploadingPreview,
+                  value: previewUrl,
+                },
+              ]),
         ].map(({ slot, label, sub, ref, file, url, loading, value }) => (
           <div
             key={slot}
@@ -501,7 +549,7 @@ export function UploadForm({
             <input
               ref={ref}
               type="file"
-              accept="image/*,video/*"
+              accept={`image/*,video/*,${AUDIO_ACCEPT}`}
               className="hidden"
               onChange={(e) => {
                 if (e.target.files?.[0]) {
@@ -518,7 +566,11 @@ export function UploadForm({
             ) : file && url ? (
               <div className="flex w-full items-center gap-3">
                 <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-border/60 bg-background">
-                  {file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name) || /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(url) ? (
+                  {isAudio ? (
+                    <div className="flex size-full items-center justify-center bg-primary/10 text-primary">
+                      <SpeakerHigh className="size-6" weight="fill" />
+                    </div>
+                  ) : file.type.startsWith("video/") || /\.(mp4|webm|mov|mkv)$/i.test(file.name) || /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(url) ? (
                     <video src={url} className="size-full object-cover" muted playsInline />
                   ) : (
                     <Image src={url} alt={label} fill className="object-cover" />
@@ -527,7 +579,11 @@ export function UploadForm({
                 <div className="min-w-0 flex-1 text-left">
                   <p className="truncate text-xs font-semibold text-foreground">{file.name}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {slot === "master" && masterDimensions ? `${masterDimensions.width}×${masterDimensions.height} · ` : ""}
+                    {slot === "master" && masterDimensions
+                      ? isAudio
+                        ? `${audioFormat(file.name)} · `
+                        : `${masterDimensions.width}×${masterDimensions.height} · `
+                      : ""}
                     {value ? (
                       <span className="text-emerald-500 font-medium flex items-center gap-1 mt-0.5">
                         <CheckCircle className="size-3.5 fill-emerald-500" /> Uploaded
@@ -637,6 +693,7 @@ export function UploadForm({
                 { value: "illustration", label: "Illustration" },
                 { value: "3d", label: "3D Render" },
                 { value: "video", label: "Video" },
+                { value: "sfx", label: "SFX" },
               ]}
               onValueChange={setCategory}
               className="h-9 text-xs"
@@ -660,7 +717,7 @@ export function UploadForm({
             onChange={(e) =>
               setMetadata((m) => ({ ...m, description: e.target.value }))
             }
-            placeholder="Short description of the image…"
+            placeholder={isAudio ? "What does this sound like, and where would it be used?" : "Short description of the image…"}
             rows={2}
             className="text-xs"
           />
@@ -679,7 +736,7 @@ export function UploadForm({
                   .filter(Boolean),
               }))
             }
-            placeholder="nature, landscape, mist, dramatic lighting"
+            placeholder={isAudio ? "whoosh, impact, ambience, cinematic" : "nature, landscape, mist, dramatic lighting"}
             className="h-9 text-xs"
           />
         </Field>
@@ -695,16 +752,18 @@ export function UploadForm({
           />
         </Field>
 
-        <Field>
-          <FieldLabel className="text-xs">Color Palette</FieldLabel>
-          {metadata.palette.length > 0 ? (
-            <ColorPalette colors={metadata.palette} />
-          ) : (
-            <p className="text-[11px] text-muted-foreground">
-              No palette generated yet — click &ldquo;Generate&rdquo; above to extract colors automatically.
-            </p>
-          )}
-        </Field>
+        {!isAudio && (
+          <Field>
+            <FieldLabel className="text-xs">Color Palette</FieldLabel>
+            {metadata.palette.length > 0 ? (
+              <ColorPalette colors={metadata.palette} />
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                No palette generated yet — click &ldquo;Generate&rdquo; above to extract colors automatically.
+              </p>
+            )}
+          </Field>
+        )}
       </FieldGroup>
 
       {/* Save Button */}

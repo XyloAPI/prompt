@@ -13,13 +13,16 @@ import { ImageDetailsCard } from "@/components/image-display-section";
 import { DetailImageWrapper } from "@/components/detail-image-wrapper";
 
 import { VideoPlayer } from "@/components/video-player";
+import { AudioPlayer } from "@/components/audio-player";
 import { DetailBackButton } from "@/components/detail-back-button";
+import { isAudioAsset } from "@/lib/media";
 
 const categoryLabels: Record<string, string> = {
   photo: "Photo",
   illustration: "Illustration",
   "3d": "3D",
   video: "Video",
+  sfx: "SFX",
 };
 
 export const dynamicParams = false;
@@ -36,6 +39,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   const desc = image.description || `Browse and download "${image.title}" on Luminaq.`;
   const shareImg = image.thumbnailUrl || image.url;
+  const isAudio = isAudioAsset(image.category, image.url, image.thumbnailUrl);
 
   return {
     title: image.title,
@@ -44,20 +48,24 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       title: image.title,
       description: desc,
       type: "website",
-      images: [
-        {
-          url: shareImg,
-          width: image.width || 1200,
-          height: image.height || 630,
-          alt: image.title,
-        },
-      ],
+      ...(isAudio
+        ? {}
+        : {
+            images: [
+              {
+                url: shareImg,
+                width: image.width || 1200,
+                height: image.height || 630,
+                alt: image.title,
+              },
+            ],
+          }),
     },
     twitter: {
-      card: "summary_large_image",
+      card: isAudio ? "summary" : "summary_large_image",
       title: image.title,
       description: desc,
-      images: [shareImg],
+      ...(isAudio ? {} : { images: [shareImg] }),
     },
   };
 }
@@ -74,7 +82,9 @@ export default async function ImageDetailPage({ params }: { params: Promise<{ id
   const tags = image.tags ?? [];
   const palette = image.palette ?? [];
   const prompt = image.prompt ?? "";
-  const isVideo = image.category === "video" || /\.(mp4|webm|mov|mkv)$/i.test(image.url);
+  const isAudio = isAudioAsset(image.category, image.url, image.thumbnailUrl);
+  const isVideo =
+    !isAudio && (image.category === "video" || /\.(mp4|webm|mov|mkv)$/i.test(image.url));
 
   return (
     <div className="mx-auto max-w-[1800px] px-4 py-6 sm:px-8 lg:px-12 sm:py-8">
@@ -88,6 +98,7 @@ export default async function ImageDetailPage({ params }: { params: Promise<{ id
             title={image.title}
             prompt={image.prompt ?? undefined}
             isVideo={isVideo}
+            variant={isAudio ? "panel" : "frame"}
           >
             {image.thumbnailUrl && (
               <div
@@ -99,7 +110,9 @@ export default async function ImageDetailPage({ params }: { params: Promise<{ id
                 }}
               />
             )}
-            {isVideo ? (
+            {isAudio ? (
+              <AudioPlayer src={image.url} title={image.title} className="relative z-10" />
+            ) : isVideo ? (
               <VideoPlayer
                 src={image.url}
                 poster={image.thumbnailUrl}
@@ -173,6 +186,7 @@ export default async function ImageDetailPage({ params }: { params: Promise<{ id
             initialHeight={image.height}
             downloads={image.downloads}
             createdAt={image.createdAt}
+            isAudio={isAudio}
           />
 
           {tags.length > 0 && (

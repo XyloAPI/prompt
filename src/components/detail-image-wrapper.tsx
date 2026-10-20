@@ -16,6 +16,7 @@ interface DetailImageWrapperProps {
   title: string;
   prompt?: string;
   isVideo: boolean;
+  variant?: "frame" | "panel";
   children: React.ReactNode;
 }
 
@@ -24,6 +25,7 @@ export function DetailImageWrapper({
   title,
   prompt,
   isVideo,
+  variant = "frame",
   children,
 }: DetailImageWrapperProps) {
   const handleCopyText = (text: string, label: string) => {
@@ -52,12 +54,15 @@ export function DetailImageWrapper({
     }
   };
 
+  const shell =
+    variant === "panel"
+      ? "relative flex w-full max-w-2xl justify-center overflow-hidden rounded-2xl border border-border/50 bg-muted/30"
+      : "relative inline-flex max-w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/20 shadow-2xl";
+
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div className="relative inline-flex max-w-full overflow-hidden rounded-2xl border border-border/60 bg-muted/20 shadow-2xl">
-          {children}
-        </div>
+        <div className={shell}>{children}</div>
       </ContextMenuTrigger>
 
       <ContextMenuContent className="w-52">

@@ -13,6 +13,7 @@ export function Navbar() {
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -61,6 +62,12 @@ export function Navbar() {
             className="text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             Videos
+          </Link>
+          <Link
+            href="/gallery?category=sfx"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            SFX
           </Link>
           <Link
             href="/collections"

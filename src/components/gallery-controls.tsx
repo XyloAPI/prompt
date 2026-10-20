@@ -20,6 +20,7 @@ const categories = [
   { value: "illustration", label: "Illustrations" },
   { value: "3d", label: "3D Renders" },
   { value: "video", label: "Videos" },
+  { value: "sfx", label: "SFX" },
 ];
 
 const sortOptions = [

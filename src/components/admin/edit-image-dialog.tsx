@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { toast } from "sonner";
-import { Trash, Sparkle, CircleNotch, LinkSimple, Play } from "@phosphor-icons/react";
+import { Trash, Sparkle, CircleNotch, LinkSimple, Play, SpeakerHigh } from "@phosphor-icons/react";
 import {
   apiGenerateMetadata,
   apiGetImage,
@@ -11,6 +11,7 @@ import {
   apiDeleteImage,
 } from "@/lib/admin-api";
 import { ALL_VISION_MODELS, DEFAULT_GEMINI_MODEL } from "@/lib/ai-models";
+import { isAudioAsset } from "@/lib/media";
 import type { Category, Image as ImageType } from "@/db/schema";
 import { Button } from "@/components/ui/button";
 import { RippleButton, RippleButtonRipples } from "@/components/animate-ui/components/buttons/ripple";
@@ -44,6 +45,7 @@ const categoryOptions: { value: Category; label: string }[] = [
   { value: "illustration", label: "Illustration" },
   { value: "3d", label: "3D" },
   { value: "video", label: "Video" },
+  { value: "sfx", label: "SFX" },
 ];
 
 const MODEL_OPTIONS = ALL_VISION_MODELS;
@@ -156,7 +158,7 @@ export function EditImageDialog({
         palette: metadata.palette,
         prompt: metadata.prompt,
         url: masterUrl.trim(),
-        thumbnailUrl: previewUrl.trim() || masterUrl.trim(),
+        thumbnailUrl: isAudioCategory ? previewUrl.trim() : previewUrl.trim() || masterUrl.trim(),
       });
       if (res?.error) {
         toast.error(res.error);
@@ -172,8 +174,11 @@ export function EditImageDialog({
     }
   }
 
-  const isVideoCategory = metadata.category === "video" || /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(masterUrl);
-  const showPreviewSrc = previewUrl.trim() || masterUrl.trim();
+  const isAudioCategory = isAudioAsset(metadata.category, masterUrl, previewUrl);
+  const isVideoCategory =
+    !isAudioCategory &&
+    (metadata.category === "video" || /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(masterUrl));
+  const showPreviewSrc = isAudioCategory ? previewUrl.trim() : previewUrl.trim() || masterUrl.trim();
   const isPreviewVideo = /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(showPreviewSrc);
 
   return (
@@ -191,7 +196,11 @@ export function EditImageDialog({
                 <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1.5">Master Asset Preview</p>
                 <div className="relative aspect-[16/10] w-full overflow-hidden rounded-lg bg-muted border">
                   {masterUrl ? (
-                    isVideoCategory ? (
+                    isAudioCategory ? (
+                      <div className="flex size-full items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-950 px-3">
+                        <audio src={masterUrl} controls className="w-full" />
+                      </div>
+                    ) : isVideoCategory ? (
                       <video
                         src={masterUrl}
                         loop
@@ -212,7 +221,16 @@ export function EditImageDialog({
               <div className="rounded-xl border border-border/60 bg-muted/20 p-2 text-center">
                 <p className="text-[10px] font-bold text-muted-foreground uppercase mb-1.5">Preview Thumbnail</p>
                 <div className="relative aspect-[16/10] w-full overflow-hidden rounded-lg bg-muted border">
-                  {showPreviewSrc ? (
+                  {isAudioCategory ? (
+                    showPreviewSrc ? (
+                      <Image src={showPreviewSrc} alt="Preview" fill className="object-cover" sizes="280px" unoptimized />
+                    ) : (
+                      <div className="flex size-full flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-950 text-white/60">
+                        <SpeakerHigh className="size-5" weight="fill" />
+                        <span className="text-[10px] font-medium uppercase tracking-widest">Auto waveform</span>
+                      </div>
+                    )
+                  ) : showPreviewSrc ? (
                     isPreviewVideo ? (
                       <video
                         src={showPreviewSrc}
@@ -359,16 +377,18 @@ export function EditImageDialog({
                 />
               </Field>
 
-              <Field>
-                <FieldLabel>Color palette</FieldLabel>
-                {metadata.palette.length > 0 ? (
-                  <ColorPalette colors={metadata.palette} />
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No palette — use &ldquo;Regenerate&rdquo; to add one.
-                  </p>
-                )}
-              </Field>
+              {!isAudioCategory && (
+                <Field>
+                  <FieldLabel>Color palette</FieldLabel>
+                  {metadata.palette.length > 0 ? (
+                    <ColorPalette colors={metadata.palette} />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      No palette — use &ldquo;Regenerate&rdquo; to add one.
+                    </p>
+                  )}
+                </Field>
+              )}
             </FieldGroup>
           </div>
         </ScrollArea>
@@ -425,12 +445,20 @@ function DeleteImageButton({ id, title }: { id: string; title: string }) {
 }
 
 export function ImageThumb({ image }: { image: ImageType }) {
-  const isVideo = image.category === "video" || /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url);
+  const isAudio = isAudioAsset(image.category, image.url, image.thumbnailUrl);
+  const isVideo =
+    !isAudio &&
+    (image.category === "video" || /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url));
   const previewUrl = image.thumbnailUrl || image.url;
 
   return (
     <div className={cn("relative aspect-[4/3] overflow-hidden rounded-lg bg-muted")}>
-      {!previewUrl ? (
+      {isAudio ? (
+        <div className="flex size-full flex-col items-center justify-center gap-1 bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-950 text-white/50">
+          <SpeakerHigh className="size-5" weight="fill" />
+          <span className="text-[10px] font-medium uppercase tracking-widest">SFX</span>
+        </div>
+      ) : !previewUrl ? (
         <div className="flex size-full flex-col items-center justify-center bg-muted/40 text-muted-foreground p-2 text-center">
           <Play className="size-5 text-muted-foreground/60 mb-1" />
           <span className="text-[10px] font-medium text-muted-foreground">No Preview</span>

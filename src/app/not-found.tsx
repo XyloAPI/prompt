@@ -18,7 +18,7 @@ export default function NotFound() {
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
-    const match = window.location.pathname.match(/^\/(?:image|video)\/([^/]+)\/?$/);
+    const match = window.location.pathname.match(/^\/(?:image|video|sfx)\/([^/]+)\/?$/);
     if (match) setAssetId(decodeURIComponent(match[1]));
     setMounted(true);
   }, []);

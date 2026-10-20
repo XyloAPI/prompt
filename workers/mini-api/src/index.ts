@@ -327,6 +327,24 @@ const CURATOR_PROMPT = (hint: string | undefined, video: boolean) =>
     .filter(Boolean)
     .join("\n");
 
+const SFX_PROMPT = (hint?: string) =>
+  [
+    "You are an expert sound designer and audio curator. Listen to this sound effect carefully and generate structured metadata for a modern media asset library.",
+    hint ? `Reference filename / context: "${hint}"` : "",
+    "Focus on the actual sound events, texture, intensity, environment, and any musical character. Do not invent visuals.",
+    "Respond strictly in valid JSON format with this exact structure:",
+    "{",
+    '  "title": "A short, descriptive, punchy title (max 5-6 words, no quotes)",',
+    '  "description": "A concise, engaging 1-2 sentence description of what the sound is and where it would be used",',
+    '  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6"],',
+    '  "palette": [],',
+    '  "prompt": ""',
+    "}",
+    "Output only the JSON object without markdown fences or additional commentary.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
 function b64(bytes: Uint8Array): string {
   let s = "";
   for (let i = 0; i < bytes.length; i += 0x8000) {
@@ -344,14 +362,16 @@ function b64ToBytes(base64: string): Uint8Array {
 
 async function analyzeWithGemini(bytes: Uint8Array, mimeType: string, model: string, apiKey: string, hint?: string) {
   if (!apiKey) return { ok: false as const, error: "Gemini API key not configured." };
+  const isAudio = mimeType.startsWith("audio/");
   const isVideo = mimeType.startsWith("video/");
+  const prompt = isAudio ? SFX_PROMPT(hint) : CURATOR_PROMPT(hint, isVideo);
   try {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
       method: "POST",
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(isAudio ? 45000 : 20000),
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: CURATOR_PROMPT(hint, isVideo) }, { inlineData: { mimeType, data: b64(bytes) } }] }],
+        contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType, data: b64(bytes) } }] }],
         generationConfig: { temperature: 0.3, maxOutputTokens: 4096, topP: 0.95, responseMimeType: "application/json" },
       }),
     });
@@ -455,6 +475,12 @@ async function analyzeImage(
 
   let provider = s.ai_provider || "gemini";
   const mo = modelOverride?.trim();
+
+  if (mimeType.startsWith("audio/")) {
+    const audioModel = mo && mo.startsWith("gemini-") ? mo : s.gemini_model || "gemini-3.8-flash";
+    return analyzeWithGemini(bytes, mimeType, audioModel, s.gemini_api_key, hint);
+  }
+
   if (mo) {
     if (MODEL_LISTS.groq.includes(mo)) provider = "groq";
     else if (mo.startsWith("@cf/")) provider = "cloudflare";
@@ -552,7 +578,7 @@ async function testProvider(env: Env) {
 
 // ---------- router ----------
 
-const CATS = ["photo", "illustration", "3d", "video"];
+const CATS = ["photo", "illustration", "3d", "video", "sfx"];
 
 const worker = {
   async fetch(req: Request, env: Env): Promise<Response> {
@@ -629,6 +655,26 @@ const worker = {
         return respond(res);
       }
 
+      // ----- public: home feed (latest + per category, no rebuild needed) -----
+      if (path === "/home" && method === "GET") {
+        const [latest, perCategory] = await Promise.all([
+          q(env, `SELECT ${IMAGE_COLS} FROM images ORDER BY created_at DESC LIMIT 48`),
+          q(
+            env,
+            `SELECT * FROM (SELECT ${IMAGE_COLS}, ROW_NUMBER() OVER (PARTITION BY category ORDER BY created_at DESC) AS rn FROM images) WHERE rn <= 24 ORDER BY created_at DESC`
+          ),
+        ]);
+        const byCategory: Record<string, unknown[]> = {};
+        for (const category of CATS) byCategory[category] = [];
+        for (const row of perCategory) {
+          const image = toImage(row);
+          (byCategory[image.category] ??= []).push(image);
+        }
+        const res = json({ images: latest.map(toImage), byCategory });
+        res.headers.set("Cache-Control", "no-store");
+        return respond(res);
+      }
+
       // ----- public: single asset read (used by the 404 fallback for assets
       // uploaded after the last static build) -----
       const publicImageMatch = path.match(/^\/images\/([^/]+)$/);
@@ -701,13 +747,14 @@ const worker = {
           return respond(json({ error: "Invalid palette data." }, 400));
         }
         const tags = (b.tags ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+        const thumb = (b.thumbnailUrl ?? "").trim();
         const id = crypto.randomUUID();
         await q(
           env,
           "INSERT INTO images (id,title,description,category,tags,prompt,palette,url,thumbnail_url,width,height,size_bytes,downloads,trending,is_daily_pick,created_at,blur_data_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),?)",
           [
             id, title, (b.description ?? "").trim(), category, JSON.stringify(tags), (b.prompt ?? "").trim(),
-            JSON.stringify(palette), rurl, (b.thumbnailUrl ?? "").trim() || rurl,
+            JSON.stringify(palette), rurl, category === "sfx" ? thumb : thumb || rurl,
             Math.max(1, Number(b.width) || 1200), Math.max(1, Number(b.height) || 800), Math.max(0, Number(b.sizeBytes) || 0),
             0, 0, 0, (b.blurDataUrl ?? "").trim(),
           ]
@@ -913,24 +960,28 @@ const worker = {
           const res = await fetch(b.url, { signal: AbortSignal.timeout(30000) });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const ab = await res.arrayBuffer();
-          if (ab.byteLength > 15 * 1024 * 1024) return respond(json({ error: "Remote image too large (max 15MB)." }, 413));
+          const ext = b.url.split("?")[0].split(".").pop()?.toLowerCase() ?? "jpg";
+          const mime: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", avif: "image/avif", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime", mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg", oga: "audio/ogg", m4a: "audio/mp4", aac: "audio/aac", flac: "audio/flac", opus: "audio/opus", weba: "audio/webm" };
+          const mimeType = mime[ext] ?? "image/jpeg";
+          const maxBytes = mimeType.startsWith("audio/") ? 10 * 1024 * 1024 : 15 * 1024 * 1024;
+          if (ab.byteLength > maxBytes) return respond(json({ error: "Remote file too large." }, 413));
           bytes = new Uint8Array(ab);
+          const result = await analyzeImage(env, bytes, mimeType, b.model, b.hint);
+          if (!result.ok) return respond(json({ error: result.error }, 500));
+          return respond(json(result.data));
         } catch (err) {
-          return respond(json({ error: `Could not read image URL: ${err instanceof Error ? err.message : "fetch failed"}` }, 400));
+          return respond(json({ error: `Could not read asset URL: ${err instanceof Error ? err.message : "fetch failed"}` }, 400));
         }
-        const ext = b.url.split("?")[0].split(".").pop()?.toLowerCase() ?? "jpg";
-        const mime: Record<string, string> = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", avif: "image/avif", mp4: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
-        const result = await analyzeImage(env, bytes, mime[ext] ?? "image/jpeg", b.model, b.hint);
-        if (!result.ok) return respond(json({ error: result.error }, 500));
-        return respond(json(result.data));
       }
       if (path === "/ai/generate-file" && method === "POST") {
         const b = (await req.json()) as { base64?: string; mimeType?: string; model?: string; hint?: string };
         if (!b.base64) return respond(json({ error: "Missing base64." }, 400));
         try {
           const bytes = b64ToBytes(b.base64);
-          if (bytes.length > 15 * 1024 * 1024) return respond(json({ error: "Image too large (max 15MB)." }, 413));
-          const result = await analyzeImage(env, bytes, b.mimeType || "image/jpeg", b.model, b.hint);
+          const mimeType = b.mimeType || "image/jpeg";
+          const maxBytes = mimeType.startsWith("audio/") ? 10 * 1024 * 1024 : 15 * 1024 * 1024;
+          if (bytes.length > maxBytes) return respond(json({ error: "File too large for AI analysis." }, 413));
+          const result = await analyzeImage(env, bytes, mimeType, b.model, b.hint);
           if (!result.ok) return respond(json({ error: result.error }, 500));
           return respond(json(result.data));
         } catch (err) {

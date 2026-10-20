@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { ArrowsOutSimple, CalendarBlank, DownloadSimple } from "@phosphor-icons/react";
+import { ArrowsOutSimple, CalendarBlank, DownloadSimple, SpeakerHigh } from "@phosphor-icons/react";
+import { audioFormat } from "@/lib/media";
 
 interface ImageDetailsCardProps {
   id?: string;
@@ -10,6 +11,7 @@ interface ImageDetailsCardProps {
   initialHeight?: number | null;
   downloads: number;
   createdAt: string | number | Date;
+  isAudio?: boolean;
 }
 
 export function ImageDetailsCard({
@@ -19,6 +21,7 @@ export function ImageDetailsCard({
   initialHeight,
   downloads: initialDownloads,
   createdAt,
+  isAudio = false,
 }: ImageDetailsCardProps) {
   const [dimensions, setDimensions] = React.useState({
     width: initialWidth ?? 0,
@@ -27,6 +30,7 @@ export function ImageDetailsCard({
   const [downloads, setDownloads] = React.useState(initialDownloads);
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDownloads(initialDownloads);
   }, [initialDownloads]);
 
@@ -42,7 +46,7 @@ export function ImageDetailsCard({
   }, [id]);
 
   React.useEffect(() => {
-    if (!url) return;
+    if (!url || isAudio) return;
     const isVideo = /\.(mp4|webm|mov|mkv)$/i.test(url);
     if (isVideo) {
       const vid = document.createElement("video");
@@ -64,7 +68,7 @@ export function ImageDetailsCard({
       };
       img.src = url;
     }
-  }, [url]);
+  }, [url, isAudio]);
 
   return (
     <div className="space-y-2.5 rounded-xl border border-border/50 bg-muted/20 p-4 text-xs">
@@ -80,13 +84,15 @@ export function ImageDetailsCard({
 
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-muted-foreground">
-          <ArrowsOutSimple className="size-3.5" />
-          <span>Dimensions</span>
+          {isAudio ? <SpeakerHigh className="size-3.5" /> : <ArrowsOutSimple className="size-3.5" />}
+          <span>{isAudio ? "Format" : "Dimensions"}</span>
         </span>
         <span className="font-mono font-medium text-foreground tabular-nums">
-          {dimensions.width > 0 && dimensions.height > 0
-            ? `${dimensions.width} × ${dimensions.height}`
-            : "—"}
+          {isAudio
+            ? audioFormat(url)
+            : dimensions.width > 0 && dimensions.height > 0
+              ? `${dimensions.width} × ${dimensions.height}`
+              : "—"}
         </span>
       </div>
 

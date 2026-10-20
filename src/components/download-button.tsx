@@ -11,8 +11,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { CircleNotch, DownloadSimple, CheckCircle } from "@phosphor-icons/react";
+import { CircleNotch, DownloadSimple, CheckCircle, SpeakerHigh } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { isAudioAsset } from "@/lib/media";
 import { cn } from "@/lib/utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -36,19 +37,26 @@ export function DownloadButton({
 }) {
   const [open, setOpen] = React.useState(false);
   const [downloading, setDownloading] = React.useState(false);
-  const isVideo = /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(url || thumbnailUrl || "");
+  const isAudio = isAudioAsset(null, url, thumbnailUrl);
+  const isVideo =
+    !isAudio && /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(url || thumbnailUrl || "");
 
   const getDownloadExt = (blobType?: string) => {
     if (blobType) {
-      if (blobType.includes("mp4")) return "mp4";
-      if (blobType.includes("webm")) return "webm";
+      if (blobType.includes("mpeg")) return "mp3";
+      if (blobType.includes("wav")) return "wav";
+      if (blobType.includes("ogg")) return "ogg";
+      if (blobType.includes("mp4")) return isAudio ? "m4a" : "mp4";
+      if (blobType.includes("webm")) return isAudio ? "weba" : "webm";
       if (blobType.includes("quicktime")) return "mov";
       if (blobType.includes("png")) return "png";
       if (blobType.includes("webp")) return "webp";
     }
-    const match = (url || "").match(/\.(mp4|webm|mov|mkv|png|webp|gif|jpg|jpeg)(\?.*)?$/i);
+    const match = (url || "").match(
+      /\.(mp4|webm|mov|mkv|mp3|wav|ogg|oga|m4a|aac|flac|opus|weba|png|webp|gif|jpg|jpeg)(\?.*)?$/i
+    );
     if (match) return match[1].toLowerCase();
-    return isVideo ? "mp4" : "jpg";
+    return isAudio ? "mp3" : isVideo ? "mp4" : "jpg";
   };
 
   async function handleConfirmDownload() {
@@ -118,21 +126,27 @@ export function DownloadButton({
         <div className="my-2">
           {/* Asset info banner */}
           <div className="flex items-center gap-3.5 rounded-xl border border-border/60 bg-muted/20 p-3">
-            {!isVideo && (
-              <div className="relative size-14 shrink-0 overflow-hidden rounded-lg border border-border/50 bg-background">
-                <img
-                  src={thumbnailUrl || url}
-                  alt={title}
-                  className="size-full object-cover"
-                />
+            {isAudio ? (
+              <div className="flex size-14 shrink-0 items-center justify-center rounded-lg border border-border/50 bg-primary/10 text-primary">
+                <SpeakerHigh className="size-6" weight="fill" />
               </div>
+            ) : (
+              !isVideo && (
+                <div className="relative size-14 shrink-0 overflow-hidden rounded-lg border border-border/50 bg-background">
+                  <img
+                    src={thumbnailUrl || url}
+                    alt={title}
+                    className="size-full object-cover"
+                  />
+                </div>
+              )
             )}
             <div className="min-w-0 flex-1 space-y-0.5">
               <p className="truncate text-sm font-medium text-foreground">{title}</p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1 text-primary">
                   <CheckCircle className="size-3" weight="fill" />
-                  {isVideo ? "Original Video File" : "High Quality Image"}
+                  {isAudio ? "Original Audio File" : isVideo ? "Original Video File" : "High Quality Image"}
                 </span>
               </div>
             </div>

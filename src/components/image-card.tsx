@@ -12,9 +12,13 @@ import {
   DownloadSimple,
   Info,
   Heart,
+  Pause,
+  SpeakerHigh,
 } from "@phosphor-icons/react";
 
 import { cn } from "@/lib/utils";
+import { isAudioAsset } from "@/lib/media";
+import { seededWaveform } from "@/lib/waveform";
 import type { CardImage } from "@/lib/card-image";
 import { useFavoritesStore } from "@/store/favorites-store";
 import {
@@ -25,6 +29,14 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 
+const audioRegistry = new Set<HTMLAudioElement>();
+
+function pauseOtherAudio(current: HTMLAudioElement) {
+  for (const element of audioRegistry) {
+    if (element !== current) element.pause();
+  }
+}
+
 export function ImageCard({
   image,
   className,
@@ -34,19 +46,77 @@ export function ImageCard({
   className?: string;
   eager?: boolean;
 }) {
+  const isAudio = isAudioAsset(image.category, image.url, image.thumbnailUrl);
+
   const isVideo =
-    image.category === "video" ||
-    /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
-    /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url);
+    !isAudio &&
+    (image.category === "video" ||
+      /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
+      /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url));
 
   const previewUrl = image.thumbnailUrl || image.url;
 
   const isThumbnailVideo = /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(previewUrl);
 
   const videoRef = React.useRef<HTMLVideoElement>(null);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [audioPlaying, setAudioPlaying] = React.useState(false);
+  const [audioProgress, setAudioProgress] = React.useState(0);
+  const waveform = React.useMemo(() => seededWaveform(image.id, 48), [image.id]);
+
+  React.useEffect(() => {
+    if (!isAudio) return;
+    const element = new Audio(image.url);
+    element.preload = "none";
+    audioRef.current = element;
+    audioRegistry.add(element);
+
+    const onPlay = () => {
+      pauseOtherAudio(element);
+      setAudioPlaying(true);
+    };
+    const onPause = () => setAudioPlaying(false);
+    const onEnded = () => {
+      setAudioPlaying(false);
+      setAudioProgress(0);
+    };
+    const onTimeUpdate = () => {
+      if (Number.isFinite(element.duration) && element.duration > 0) {
+        setAudioProgress(element.currentTime / element.duration);
+      }
+    };
+
+    element.addEventListener("play", onPlay);
+    element.addEventListener("pause", onPause);
+    element.addEventListener("ended", onEnded);
+    element.addEventListener("timeupdate", onTimeUpdate);
+
+    return () => {
+      element.pause();
+      element.removeEventListener("play", onPlay);
+      element.removeEventListener("pause", onPause);
+      element.removeEventListener("ended", onEnded);
+      element.removeEventListener("timeupdate", onTimeUpdate);
+      audioRegistry.delete(element);
+      audioRef.current = null;
+    };
+  }, [image.url, isAudio]);
+
+  const toggleAudio = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const element = audioRef.current;
+    if (!element) return;
+    if (element.paused) {
+      element.play().catch(() => toast.error("Could not play this sound effect."));
+    } else {
+      element.pause();
+    }
+  };
 
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
 
@@ -81,7 +151,7 @@ export function ImageCard({
     }
   };
 
-  const detailUrl = isVideo ? `/video/${image.id}` : `/image/${image.id}`;
+  const detailUrl = isAudio ? `/sfx/${image.id}` : isVideo ? `/video/${image.id}` : `/image/${image.id}`;
 
   return (
     <ContextMenu>
@@ -102,7 +172,35 @@ export function ImageCard({
             }
           }}
         >
-          {!previewUrl ? (
+          {isAudio ? (
+            <div className="relative flex size-full min-h-[160px] flex-col justify-center overflow-hidden bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-950 p-4">
+              <div className="flex h-16 items-end gap-[2px]" aria-hidden>
+                {waveform.map((height, index) => (
+                  <span
+                    key={index}
+                    className={cn(
+                      "min-w-[2px] flex-1 rounded-full transition-colors duration-150",
+                      index / waveform.length <= audioProgress ? "bg-white" : "bg-white/25"
+                    )}
+                    style={{ height: `${height}%` }}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={toggleAudio}
+                aria-label={audioPlaying ? "Pause sound effect" : "Play sound effect"}
+                className="absolute top-1/2 left-1/2 flex size-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white shadow-md backdrop-blur-md transition-all hover:scale-105 hover:bg-black/60"
+              >
+                {audioPlaying ? (
+                  <Pause className="size-5" weight="fill" />
+                ) : (
+                  <Play className="size-5 translate-x-0.5 fill-white" />
+                )}
+              </button>
+            </div>
+          ) : !previewUrl ? (
             <div className="flex size-full min-h-[160px] flex-col items-center justify-center bg-muted/40 text-muted-foreground p-4 text-center">
               <div className="flex size-10 items-center justify-center rounded-full bg-background/70 shadow-xs mb-2">
                 <Play className="size-4 fill-muted-foreground/60 text-muted-foreground/60 ml-0.5" />
@@ -134,7 +232,12 @@ export function ImageCard({
 
           {/* Category Indicator Badge */}
           <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-white uppercase backdrop-blur-md border border-white/10 shadow-xs">
-            {isVideo ? (
+            {isAudio ? (
+              <>
+                <SpeakerHigh className="size-2.5" weight="fill" />
+                <span>SFX</span>
+              </>
+            ) : isVideo ? (
               <>
                 <Play className="size-2.5 fill-white" />
                 <span>Video</span>

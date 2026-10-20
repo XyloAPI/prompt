@@ -11,6 +11,8 @@ import { ImageDetailsCard } from "@/components/image-display-section";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { VideoPlayer } from "@/components/video-player";
+import { AudioPlayer } from "@/components/audio-player";
+import { isAudioAsset } from "@/lib/media";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -45,6 +47,7 @@ export function ImageDetailLive({ id }: { id: string }) {
     // The Function embeds the asset for live pages -> render instantly.
     const embedded = (window as unknown as { __LIVE_ASSET__?: LiveImage }).__LIVE_ASSET__;
     if (embedded && embedded.id === id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setImage(embedded);
       setStatus("ok");
       document.title = `${embedded.title} · Luminaq`;
@@ -94,7 +97,9 @@ export function ImageDetailLive({ id }: { id: string }) {
     );
   }
 
-  const isVideo = image.category === "video" || /\.(mp4|webm|mov|mkv)$/i.test(image.url);
+  const isAudio = isAudioAsset(image.category, image.url, image.thumbnailUrl);
+  const isVideo =
+    !isAudio && (image.category === "video" || /\.(mp4|webm|mov|mkv)$/i.test(image.url));
 
   return (
     <div className="mx-auto max-w-[1800px] px-4 py-6 sm:px-8 lg:px-12 sm:py-8">
@@ -107,6 +112,7 @@ export function ImageDetailLive({ id }: { id: string }) {
             title={image.title}
             prompt={image.prompt || undefined}
             isVideo={isVideo}
+            variant={isAudio ? "panel" : "frame"}
           >
             {image.thumbnailUrl && (
               <div
@@ -118,7 +124,9 @@ export function ImageDetailLive({ id }: { id: string }) {
                 }}
               />
             )}
-            {isVideo ? (
+            {isAudio ? (
+              <AudioPlayer src={image.url} title={image.title} className="relative z-10" />
+            ) : isVideo ? (
               <VideoPlayer
                 src={image.url}
                 poster={image.thumbnailUrl}
@@ -142,7 +150,7 @@ export function ImageDetailLive({ id }: { id: string }) {
         <aside className="space-y-6 lg:sticky lg:top-24 lg:self-start">
           <div className="space-y-2">
             <div className="inline-flex items-center rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-              {image.category}
+              {image.category === "sfx" ? "SFX" : image.category}
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">{image.title}</h1>
             {image.description && (
@@ -184,6 +192,7 @@ export function ImageDetailLive({ id }: { id: string }) {
             initialHeight={image.height}
             downloads={image.downloads}
             createdAt={image.createdAt}
+            isAudio={isAudio}
           />
 
           {image.tags?.length > 0 && (

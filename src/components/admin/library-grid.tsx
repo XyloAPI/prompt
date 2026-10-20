@@ -12,6 +12,7 @@ import {
   Play,
   SlidersHorizontal,
 } from "@phosphor-icons/react";
+import { buildWaveform, isAudioAsset } from "@/lib/media";
 import type { Category, Image as ImageType } from "@/db/schema";
 import { EditImageDialog } from "@/components/admin/edit-image-dialog";
 import { DeleteImageButton } from "@/components/admin/delete-image-button";
@@ -24,6 +25,7 @@ const categoryOptions: { value: Category | "all"; label: string }[] = [
   { value: "illustration", label: "Illustrations" },
   { value: "3d", label: "3D Renders" },
   { value: "video", label: "Videos" },
+  { value: "sfx", label: "SFX" },
 ];
 
 export function LibraryGrid({
@@ -36,7 +38,7 @@ export function LibraryGrid({
   const [filter, setFilter] = React.useState<Category | "all">(() => {
     try {
       const saved = sessionStorage.getItem("admin_library_filter");
-      if (saved && ["all", "photo", "illustration", "3d", "video"].includes(saved)) {
+      if (saved && ["all", "photo", "illustration", "3d", "video", "sfx"].includes(saved)) {
         return saved as Category | "all";
       }
     } catch {}
@@ -84,6 +86,7 @@ export function LibraryGrid({
       illustration: images.filter((i) => i.category === "illustration").length,
       "3d": images.filter((i) => i.category === "3d").length,
       video: images.filter((i) => i.category === "video").length,
+      sfx: images.filter((i) => i.category === "sfx").length,
     };
   }, [images]);
 
@@ -182,8 +185,28 @@ export function LibraryGrid({
               {/* Thumbnail Container */}
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
                 {(() => {
-                  const isVideo = image.category === "video" || /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url);
+                  const isAudio = isAudioAsset(image.category, image.url, image.thumbnailUrl);
                   const previewUrl = image.thumbnailUrl || image.url;
+
+                  if (isAudio) {
+                    const bars = buildWaveform(image.id, 28);
+                    return (
+                      <div className="relative flex size-full flex-col justify-center bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-950 p-3">
+                        <div className="flex h-12 items-end gap-[2px]" aria-hidden>
+                          {bars.map((height, index) => (
+                            <span
+                              key={index}
+                              className="flex-1 rounded-full bg-white/40"
+                              style={{ height: `${height}%` }}
+                            />
+                          ))}
+                        </div>
+                        <span className="absolute right-2 bottom-2 text-[10px] font-semibold uppercase tracking-widest text-white/50">
+                          SFX
+                        </span>
+                      </div>
+                    );
+                  }
 
                   if (!previewUrl) {
                     return (
@@ -239,11 +262,13 @@ export function LibraryGrid({
                   </button>
                   <Link
                     href={
-                      image.category === "video" ||
-                      /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
-                      /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url)
-                        ? `/video/${image.id}`
-                        : `/image/${image.id}`
+                      isAudioAsset(image.category, image.url, image.thumbnailUrl)
+                        ? `/sfx/${image.id}`
+                        : image.category === "video" ||
+                            /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.thumbnailUrl) ||
+                            /\.(mp4|webm|mov|mkv)(\?.*)?$/i.test(image.url)
+                          ? `/video/${image.id}`
+                          : `/image/${image.id}`
                     }
                     target="_blank"
                     className="inline-flex size-8 items-center justify-center rounded-full bg-background/90 text-foreground shadow-sm hover:bg-background transition-transform active:scale-95"
